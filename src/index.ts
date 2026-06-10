@@ -1,11 +1,21 @@
-import { Context, Schema } from 'koishi'
+import { Context } from "koishi";
+import { MCSManagerClient } from "./client";
+import { registerCommands } from "./commands";
+import { Config as ConfigSchema } from "./config";
+import type { Config as PluginConfig } from "./config";
+import { defineLocales } from "./locales";
 
-export const name = 'mcsm-portal'
+export const name = "mcsm-portal";
+export const inject = ["http"];
 
-export interface Config {}
+export interface Config extends PluginConfig {}
 
-export const Config: Schema<Config> = Schema.object({})
+export const Config = ConfigSchema;
+export * from "./types";
 
 export function apply(ctx: Context, config: Config) {
-  // write your plugin here
+  const commandName = config.command.name.trim() || "mcsm";
+  defineLocales(ctx, commandName);
+  const client = new MCSManagerClient(ctx, config.connection, config.minecraft, config.cacheTtl, config.debug);
+  registerCommands(ctx, config, client);
 }
