@@ -1,9 +1,17 @@
 {
   "name": "koishi-plugin-mcsm-portal",
   "description": "A unified portal for MCSManager.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
+  "homepage": "https://github.com/KrLite/koishi-plugin-mcsm-portal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrLite/koishi-plugin-mcsm-portal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KrLite/koishi-plugin-mcsm-portal/issues"
+  },
   "files": [
     "lib",
     "dist",
@@ -22,7 +30,23 @@
     "@koishijs/client": "^5.30.4",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.19"
+  },
+  "koishi": {
+    "public": [
+      "dist"
+    ],
+    "description": {
+      "en": "A Minecraft-styled MCSManager portal for node and server status.",
+      "zh": "Minecraft 风格的 MCSManager 节点与服务器状态入口。"
+    },
+    "service": {
+      "optional": [
+        "console"
+      ]
+    }
   },
   "peerDependencies": {
     "@koishijs/plugin-console": "^5.30.4",
@@ -32,9 +56,5 @@
     "@koishijs/plugin-console": {
       "optional": true
     }
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
   }
 }
