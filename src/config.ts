@@ -1,5 +1,6 @@
 import { Schema } from "koishi";
 import type { ServerFieldVisibility } from "./types";
+import { listBackgroundTextureNames } from "./visualization/styles";
 
 export interface ConnectionConfig {
   endpoint: string;
@@ -15,7 +16,7 @@ export interface CommandConfig {
 
 export interface ImageConfig {
   title: string;
-  theme: "auto" | "light" | "dark";
+  backgroundTexture: string;
   accentColor: string;
   showGeneratedAt: boolean;
 }
@@ -95,13 +96,7 @@ export const Config: Schema<Config> = Schema.intersect([
       title: Schema.string()
         .description("Title displayed in generated portal images.")
         .default("MCSM Portal"),
-      theme: Schema.union([
-        Schema.const("auto").description("Auto (follows local sunrise/sunset)"),
-        Schema.const("light").description("Light"),
-        Schema.const("dark").description("Dark"),
-      ] as const)
-        .description("Image theme.")
-        .default("auto"),
+      backgroundTexture: createBackgroundTextureSchema(),
       accentColor: Schema.string()
         .description("CSS color used as the image accent color.")
         .default("#39c5bb"),
@@ -112,9 +107,7 @@ export const Config: Schema<Config> = Schema.intersect([
     output: Schema.object({
       mode: Schema.union([
         Schema.const("text").description("Text only"),
-        Schema.const("image").description(
-          "Image when available, text fallback for now",
-        ),
+        Schema.const("image").description("Image"),
       ] as const)
         .description("Bot result output mode.")
         .default("text"),
@@ -171,3 +164,15 @@ export const Config: Schema<Config> = Schema.intersect([
     }).description("Server list fields"),
   }),
 ]);
+
+function createBackgroundTextureSchema() {
+  const names = listBackgroundTextureNames();
+  const options = [
+    Schema.const("").description("None"),
+    ...names.map((name) => Schema.const(name).description(name)),
+  ];
+
+  return Schema.union(options)
+    .description("Tiled background texture from assets/textures.")
+    .default(names.includes("dirt.png") ? "dirt.png" : "");
+}

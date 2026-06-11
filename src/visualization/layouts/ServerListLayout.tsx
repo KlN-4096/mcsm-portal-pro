@@ -1,51 +1,67 @@
 /** @jsxImportSource react */
 
-import { formatPlayers, ImageShell, Stat } from "./components";
+import { createImageStyle, formatPlayers, serverLatencyLabel } from "./components";
 import type { VisualizationLayoutProps } from "./types";
 
 export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
   const running = data.servers.filter((server) => server.status === "running").length;
 
   return (
-    <ImageShell
-      className="mcsm-image--servers"
-      width={layout.previewWidth}
-      title={data.panelName}
-      subtitle={`${running}/${data.servers.length} Minecraft servers running`}
-      generatedAt={data.generatedAt}
+    <article
+      className="mcsm-image mcsm-image--servers mcsm-minecraft-screen"
+      style={createImageStyle(layout.previewWidth, data.backgroundTile)}
     >
-      <section className="mcsm-server-grid">
+      <header className="mcsm-minecraft-screen__header">
+        <span>{data.panelName}</span>
+        <h3>Play Multiplayer</h3>
+        <small>{running}/{data.servers.length} servers online</small>
+      </header>
+
+      <section className="mcsm-minecraft-server-list">
         {data.servers.map((server) => (
-          <div
+          <article
             key={server.id}
-            className={`mcsm-server-card is-${server.status}`}
+            className={`mcsm-server-row is-${server.status}`}
           >
-            <header>
-              <div>
-                <strong>{server.name}</strong>
-                <span>{server.nodeName ?? server.nodeId ?? "Unknown node"}</span>
-              </div>
-              <em>{server.status}</em>
-            </header>
-            <p className="mcsm-address">
-              {server.address ?? "No address configured"}
-            </p>
-            <div className="mcsm-server-meta">
-              <Stat label="Players" value={formatPlayers(server)} />
-              <Stat label="Version" value={server.version ?? "unknown"} />
-              <Stat label="Type" value={server.type ?? "minecraft"} />
+            <div className="mcsm-server-icon" aria-hidden="true">
+              <span>{server.name.slice(0, 1)}</span>
             </div>
-            {server.motd ? <p className="mcsm-motd">{server.motd}</p> : null}
-            {server.tags.length ? (
-              <div className="mcsm-tags">
-                {server.tags.map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
+            <div className="mcsm-server-main">
+              <div className="mcsm-server-title-line">
+                <strong>{server.name}</strong>
+                <span>{formatPlayers(server)}</span>
               </div>
-            ) : null}
-          </div>
+              <p className="mcsm-server-motd">
+                {server.motd ?? server.address ?? "Minecraft Server"}
+              </p>
+              <p className="mcsm-server-address">
+                {server.address ?? "No address configured"}
+              </p>
+            </div>
+            <aside className="mcsm-server-side">
+              <span className="mcsm-ping-bars" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+              <small>{serverLatencyLabel(server)}</small>
+              <small>{server.version ?? server.type ?? "Minecraft"}</small>
+            </aside>
+          </article>
         ))}
       </section>
-    </ImageShell>
+
+      <footer className="mcsm-minecraft-buttons">
+        <button>Join Server</button>
+        <button>Direct Connect</button>
+        <button>Refresh</button>
+      </footer>
+
+      <p className="mcsm-minecraft-caption">
+        {new Date(data.generatedAt).toLocaleString()}
+      </p>
+    </article>
   );
 }

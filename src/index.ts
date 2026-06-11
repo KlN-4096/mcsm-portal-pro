@@ -19,6 +19,7 @@ export * from "./types";
 export * from "./visualization";
 export * from "./visualization/layouts";
 export * from "./visualization/renderer";
+export * from "./visualization/styles";
 
 export function apply(ctx: Context, config: Config) {
   const commandName = config.command.name.trim() || "mcsm";

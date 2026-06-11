@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 
 import type { MinecraftInstance } from "../../types";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export function ImageShell(props: {
   className: string;
@@ -9,12 +9,13 @@ export function ImageShell(props: {
   title: string;
   subtitle: string;
   generatedAt: string;
+  backgroundTile?: string;
   children: ReactNode;
 }) {
   return (
     <article
       className={`mcsm-image ${props.className}`}
-      style={{ width: `${props.width}px` }}
+      style={createImageStyle(props.width, props.backgroundTile)}
     >
       <header className="mcsm-image-header">
         <div>
@@ -27,6 +28,15 @@ export function ImageShell(props: {
       {props.children}
     </article>
   );
+}
+
+export function createImageStyle(width: number, backgroundTile?: string) {
+  return {
+    width: `${width}px`,
+    ...(backgroundTile
+      ? { "--mcsm-background-tile": `url("${backgroundTile}")` }
+      : {}),
+  } as CSSProperties & Record<"--mcsm-background-tile", string>;
 }
 
 export function Stat(props: { label: string; value: string }) {
@@ -65,6 +75,14 @@ export function formatPlayers(server: MinecraftInstance) {
     return "unknown";
   }
   return `${server.onlinePlayers ?? "?"}/${server.maxPlayers ?? "?"}`;
+}
+
+export function serverLatencyLabel(server: MinecraftInstance) {
+  if (server.status === "running") return "Online";
+  if (server.status === "starting") return "Starting";
+  if (server.status === "stopping") return "Stopping";
+  if (server.status === "stopped") return "Offline";
+  return "Unknown";
 }
 
 function formatBytes(value: number) {

@@ -1,4 +1,6 @@
 import type { MinecraftInstance, NodeStatus } from "./types";
+import type { Config } from "./config";
+import { resolveBackgroundTextureDataUri } from "./visualization/styles";
 
 export type VisualizationSurface = "node-status" | "server-list";
 
@@ -16,6 +18,8 @@ export interface CodeAuthoredLayoutDefinition {
 export interface VisualizationMockData {
   panelName: string;
   generatedAt: string;
+  backgroundTexture?: string;
+  backgroundTile?: string;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
 }
@@ -35,7 +39,7 @@ export const codeAuthoredLayouts: CodeAuthoredLayoutDefinition[] = [
     renderer: "react",
     componentPath: "src/visualization/layouts/NodeStatusLayout.tsx",
     exportName: "NodeStatusLayout",
-    previewWidth: 960,
+    previewWidth: 854,
   },
   {
     id: "server-list.react.default",
@@ -45,22 +49,24 @@ export const codeAuthoredLayouts: CodeAuthoredLayoutDefinition[] = [
     renderer: "react",
     componentPath: "src/visualization/layouts/ServerListLayout.tsx",
     exportName: "ServerListLayout",
-    previewWidth: 1080,
+    previewWidth: 854,
   },
 ];
 
-export function createPreviewEntryData(): PreviewEntryData {
+export function createPreviewEntryData(config?: Config): PreviewEntryData {
   return {
     version: 1,
     layouts: codeAuthoredLayouts,
-    mock: createMockPreviewData(),
+    mock: createMockPreviewData(config),
   };
 }
 
-export function createMockPreviewData(): VisualizationMockData {
+export function createMockPreviewData(config?: Config): VisualizationMockData {
   return {
-    panelName: "MCSM Portal",
+    panelName: config?.image.title ?? "MCSM Portal",
     generatedAt: new Date().toISOString(),
+    backgroundTexture: config?.image.backgroundTexture || undefined,
+    backgroundTile: resolveBackgroundTextureDataUri(config?.image.backgroundTexture),
     nodes: [
       {
         id: "node-shanghai-01",

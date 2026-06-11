@@ -6,7 +6,8 @@ import type { Config } from "../config";
 import type { MinecraftInstance, NodeStatus } from "../types";
 import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition } from "../visualization";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
-import { visualizationCss } from "./styles";
+import { createVisualizationCss } from "./styles";
+import { resolveBackgroundTextureDataUri } from "./styles";
 
 export interface VisualizationRenderResult {
   layout: CodeAuthoredLayoutDefinition;
@@ -30,7 +31,7 @@ export function renderVisualizationSvgDataUri(result: VisualizationRenderResult)
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${result.width}" height="${result.height}" viewBox="0 0 ${result.width} ${result.height}">`,
     "<foreignObject width=\"100%\" height=\"100%\">",
-    `<div xmlns="http://www.w3.org/1999/xhtml"><style>${visualizationCss}</style>${result.html}</div>`,
+    `<div xmlns="http://www.w3.org/1999/xhtml"><style>${createVisualizationCss()}</style>${result.html}</div>`,
     "</foreignObject>",
     "</svg>",
   ].join("");
@@ -46,6 +47,8 @@ export function createVisualizationData(
   return {
     panelName: config.image.title,
     generatedAt: new Date().toISOString(),
+    backgroundTexture: config.image.backgroundTexture || undefined,
+    backgroundTile: resolveBackgroundTextureDataUri(config.image.backgroundTexture),
     nodes,
     servers,
   };
@@ -76,5 +79,5 @@ function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: Visualizatio
   if (layout.surface === "node-status") {
     return 120 + Math.max(data.nodes.length, 1) * 190;
   }
-  return 140 + Math.ceil(Math.max(data.servers.length, 1) / 2) * 260;
+  return 170 + Math.max(data.servers.length, 1) * 86;
 }

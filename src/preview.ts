@@ -20,5 +20,5 @@ export function registerPreviewEntry(ctx: Context, config: Config) {
   console.addEntry({
     dev: resolve(__dirname, "../client/index.ts"),
     prod: resolve(__dirname, "../dist"),
-  }, createPreviewEntryData);
+  }, () => createPreviewEntryData(config));
 }

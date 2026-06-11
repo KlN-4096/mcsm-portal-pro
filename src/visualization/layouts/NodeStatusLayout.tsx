@@ -11,6 +11,7 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
       title={data.panelName}
       subtitle="Daemon node status"
       generatedAt={data.generatedAt}
+      backgroundTile={data.backgroundTile}
     >
       <section className="mcsm-node-grid">
         {data.nodes.map((node) => (

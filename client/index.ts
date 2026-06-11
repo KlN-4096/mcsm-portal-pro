@@ -10,7 +10,10 @@ import {
   watchEffect,
 } from "vue";
 import { defineExtension, useRpc } from "@koishijs/client";
-import { NodeStatusLayout, ServerListLayout } from "../src/visualization/layouts";
+import {
+  NodeStatusLayout,
+  ServerListLayout,
+} from "../src/visualization/layouts";
 import "./style.css";
 
 type VisualizationSurface = "node-status" | "server-list";
@@ -70,6 +73,8 @@ interface MinecraftInstance {
 interface VisualizationMockData {
   panelName: string;
   generatedAt: string;
+  backgroundTexture?: string;
+  backgroundTile?: string;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
 }
@@ -140,6 +145,7 @@ const PreviewPage = defineComponent({
                                 ),
                               ),
                             ),
+                            h("hr"),
                             h("h2", "Component"),
                             h("dl", { class: "mcsm-portal-code-meta" }, [
                               h("dt", "Renderer"),
@@ -149,6 +155,21 @@ const PreviewPage = defineComponent({
                                 h("code", selectedLayout.value.componentPath),
                                 h("small", selectedLayout.value.exportName),
                               ]),
+                            ]),
+                            h("hr"),
+                            h("h2", "Background"),
+                            h("div", { class: "mcsm-portal-texture-preview" }, [
+                              mock.value.backgroundTile
+                                ? h("img", {
+                                    src: mock.value.backgroundTile,
+                                    alt:
+                                      mock.value.backgroundTexture ??
+                                      "Selected background texture",
+                                  })
+                                : h("div", {
+                                    class: "mcsm-portal-texture-preview__empty",
+                                  }),
+                              h("span", mock.value.backgroundTexture || "None"),
                             ]),
                           ],
                         ),
@@ -221,10 +242,12 @@ const ReactLayoutHost = defineComponent<{
         props.layout.surface === "node-status"
           ? NodeStatusLayout
           : ServerListLayout;
-      root.render(createElement(Component, {
-        layout: props.layout,
-        data: props.data,
-      }));
+      root.render(
+        createElement(Component, {
+          layout: props.layout,
+          data: props.data,
+        }),
+      );
     });
 
     onBeforeUnmount(() => {
