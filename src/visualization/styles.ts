@@ -145,8 +145,8 @@ function isSupportedImage(file: string) {
 }
 
 function readVisualizationLayoutCss() {
-  const path = createAssetPathCandidates("visualization", "layout.css").find((item) =>
-    existsSync(item),
+  const path = createAssetPathCandidates("visualization", "layout.css").find(
+    (item) => existsSync(item),
   );
   if (!path) {
     throw new Error(

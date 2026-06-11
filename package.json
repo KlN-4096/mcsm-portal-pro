@@ -10,7 +10,9 @@
     "assets"
   ],
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "build:visualization": "tailwindcss -c tailwind.config.cjs -i assets/visualization/layout.tailwind.css -o assets/visualization/layout.css --minify"
+  },
   "keywords": [
     "chatbot",
     "koishi",
@@ -19,7 +21,8 @@
   "devDependencies": {
     "@koishijs/client": "^5.30.4",
     "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7"
+    "@types/react-dom": "^18.3.7",
+    "tailwindcss": "^3.4.19"
   },
   "peerDependencies": {
     "@koishijs/plugin-console": "^5.30.4",

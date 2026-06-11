@@ -159,22 +159,27 @@ const PreviewPage = defineComponent({
 
     async function loadRealData() {
       if (!rpc.value?.realDataAvailable) {
-        realError.value = "Real data is unavailable because the MCSManager connection is not configured.";
+        realError.value =
+          "Real data is unavailable because the MCSManager connection is not configured.";
         return false;
       }
 
       realLoading.value = true;
       realError.value = "";
       try {
-        const response = await send("mcsm-portal/preview-data") as RealPreviewResponse;
+        const response = (await send(
+          "mcsm-portal/preview-data",
+        )) as RealPreviewResponse;
         if (!response.ok || !response.data) {
-          realError.value = response.error ?? "Failed to load real preview data.";
+          realError.value =
+            response.error ?? "Failed to load real preview data.";
           return false;
         }
         realData.value = response.data;
         return true;
       } catch (error) {
-        realError.value = error instanceof Error ? error.message : String(error);
+        realError.value =
+          error instanceof Error ? error.message : String(error);
         return false;
       } finally {
         realLoading.value = false;
@@ -186,7 +191,8 @@ const PreviewPage = defineComponent({
       const sidebarWidth = 320;
       const gap = 16;
       const previewChrome = 54;
-      const threshold = sidebarWidth + gap + selectedLayout.value.previewWidth + previewChrome;
+      const threshold =
+        sidebarWidth + gap + selectedLayout.value.previewWidth + previewChrome;
       isStacked.value = workbench.value.clientWidth < threshold;
     }
 
@@ -204,7 +210,11 @@ const PreviewPage = defineComponent({
     watchEffect(() => {
       selectedLayout.value?.previewWidth;
       nextTick(() => {
-        if (resizeObserver && workbench.value && workbench.value !== observedWorkbench) {
+        if (
+          resizeObserver &&
+          workbench.value &&
+          workbench.value !== observedWorkbench
+        ) {
           if (observedWorkbench) resizeObserver.unobserve(observedWorkbench);
           resizeObserver.observe(workbench.value);
           observedWorkbench = workbench.value;
@@ -218,163 +228,239 @@ const PreviewPage = defineComponent({
         KLayout,
         { main: "mcsm-portal-preview-page" },
         {
-          header: () => "MCSM preview",
+          header: () => "MCSM Portal Preview",
           default: () =>
             h(ElScrollbar, null, {
               default: () =>
                 h("main", { class: "mcsm-portal-preview-page__content" }, [
                   selectedLayout.value && activeData.value
-                    ? h("section", {
-                        ref: workbench,
-                        class: [
-                          "mcsm-portal-preview-workbench",
-                          isStacked.value ? "is-stacked" : "",
-                        ],
-                      }, [
-                        h(
-                          "aside",
-                          {
-                            class: "mcsm-portal-panel mcsm-portal-layout-list",
-                          },
-                          [
-                            h("h2", "Layout"),
-                            h(
-                              "div",
-                              { class: "mcsm-portal-layout-buttons" },
-                              layouts.value.map((layout) =>
-                                h(
-                                  "button",
-                                  {
-                                    key: layout.id,
-                                    type: "button",
-                                    class: {
-                                      "is-active":
-                                        layout.id === selectedLayout.value?.id,
-                                    },
-                                    onClick: () => {
-                                      selectedLayoutId.value = layout.id;
-                                    },
-                                  },
-                                  [
-                                    h("strong", layout.name),
-                                    h("span", layout.surface),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            h("hr"),
-                            h("h2", "Data Source"),
-                            h("div", { class: "mcsm-portal-source-toggle" }, [
-                              h("div", { class: "mcsm-portal-source-toggle__buttons" }, [
-                                h("button", {
-                                  type: "button",
-                                  class: {
-                                    "is-active": activeSourceLabel.value === "mock",
-                                  },
-                                  onClick: () => selectDataSource("mock"),
-                                }, "Mock"),
-                                h("button", {
-                                  type: "button",
-                                  disabled:
-                                    realLoading.value ||
-                                    !rpc.value?.realDataAvailable,
-                                  class: {
-                                    "is-active": activeSourceLabel.value === "real",
-                                  },
-                                  onClick: () => selectDataSource("real"),
-                                }, realLoading.value ? "Loading..." : "Real"),
-                              ]),
-                              activeSourceLabel.value === "real"
-                                ? h("button", {
-                                    type: "button",
-                                    class: "mcsm-portal-source-toggle__refresh",
-                                    disabled: realLoading.value,
-                                    onClick: refreshRealData,
-                                  }, realLoading.value ? "Refreshing..." : "Refresh real data")
-                                : null,
-                              realError.value
-                                ? h("p", { class: "mcsm-portal-source-toggle__error" }, realError.value)
-                                : h("p", { class: "mcsm-portal-source-toggle__hint" },
-                                    rpc.value?.realDataAvailable
-                                      ? "Switch between generated mock content and live MCSManager data."
-                                      : "Switch between generated mock content and live MCSManager data. Configure MCSManager endpoint and API key to enable Real.",
-                                  ),
-                            ]),
-                            h("hr"),
-                            h("h2", "Component"),
-                            h("dl", { class: "mcsm-portal-code-meta" }, [
-                              h("dt", "Renderer"),
-                              h("dd", selectedLayout.value.renderer),
-                              h("dt", "Component"),
-                              h("dd", [
-                                h("code", selectedLayout.value.componentPath),
-                                h("small", selectedLayout.value.exportName),
-                              ]),
-                            ]),
-                            h("hr"),
-                            h("h2", "Background"),
-                            h("div", { class: "mcsm-portal-texture-preview" }, [
-                              activeData.value.backgroundTile
-                                ? h("img", {
-                                    src: activeData.value.backgroundTile,
-                                    alt:
-                                      activeData.value.backgroundTexture ??
-                                      "Selected background texture",
-                                  })
-                                : h("div", {
-                                    class: "mcsm-portal-texture-preview__empty",
-                                  }),
-                              h("span", activeData.value.backgroundTexture || "None"),
-                            ]),
+                    ? h(
+                        "section",
+                        {
+                          ref: workbench,
+                          class: [
+                            "mcsm-portal-preview-workbench",
+                            isStacked.value ? "is-stacked" : "",
                           ],
-                        ),
-                        h("section", {
-                          class: "mcsm-portal-preview-column",
-                          style: {
-                            "--mcsm-preview-width": `${selectedLayout.value.previewWidth}px`,
-                          },
-                        }, [
-                          h("div", { class: "mcsm-portal-panel" }, [
-                            h("div", { class: "mcsm-portal-panel__heading" }, [
-                              h("h2", selectedLayout.value.name),
-                              h("span", capitalize(activeSourceLabel.value)),
-                            ]),
-                            h("div", { class: "mcsm-portal-stage" }, [
-                              renderComponentPreview(
-                                selectedLayout.value,
-                                activeData.value,
-                              ),
-                            ]),
-                          ]),
+                        },
+                        [
                           h(
-                            "div",
+                            "aside",
                             {
                               class:
-                                "mcsm-portal-panel mcsm-portal-mock-summary",
+                                "mcsm-portal-panel mcsm-portal-layout-list",
                             },
                             [
-                              h("h2", "Data"),
-                              h("div", { class: "mcsm-portal-summary-grid" }, [
-                                summaryItem("Brand", activeData.value.portalName),
-                                summaryItem("Node title", activeData.value.nodeTitle),
-                                summaryItem("Server title", activeData.value.serverTitle),
-                                summaryItem(
-                                  "Generated",
-                                  formatDate(activeData.value.generatedAt),
+                              h("h2", "Layout"),
+                              h(
+                                "div",
+                                { class: "mcsm-portal-layout-buttons" },
+                                layouts.value.map((layout) =>
+                                  h(
+                                    "button",
+                                    {
+                                      key: layout.id,
+                                      type: "button",
+                                      class: {
+                                        "is-active":
+                                          layout.id ===
+                                          selectedLayout.value?.id,
+                                      },
+                                      onClick: () => {
+                                        selectedLayoutId.value = layout.id;
+                                      },
+                                    },
+                                    [
+                                      h("strong", layout.name),
+                                      h("span", layout.surface),
+                                    ],
+                                  ),
                                 ),
-                                summaryItem(
-                                  "Nodes",
-                                  String(activeData.value.nodes.length),
+                              ),
+                              h("hr"),
+                              h("h2", "Data Source"),
+                              h("div", { class: "mcsm-portal-source-toggle" }, [
+                                h(
+                                  "div",
+                                  {
+                                    class: "mcsm-portal-source-toggle__buttons",
+                                  },
+                                  [
+                                    h(
+                                      "button",
+                                      {
+                                        type: "button",
+                                        class: {
+                                          "is-active":
+                                            activeSourceLabel.value === "mock",
+                                        },
+                                        onClick: () => selectDataSource("mock"),
+                                      },
+                                      "Mock",
+                                    ),
+                                    h(
+                                      "button",
+                                      {
+                                        type: "button",
+                                        disabled:
+                                          realLoading.value ||
+                                          !rpc.value?.realDataAvailable,
+                                        class: {
+                                          "is-active":
+                                            activeSourceLabel.value === "real",
+                                        },
+                                        onClick: () => selectDataSource("real"),
+                                      },
+                                      realLoading.value ? "Loading..." : "Real",
+                                    ),
+                                  ],
                                 ),
-                                summaryItem(
-                                  "Servers",
-                                  String(activeData.value.servers.length),
-                                ),
+                                activeSourceLabel.value === "real"
+                                  ? h(
+                                      "button",
+                                      {
+                                        type: "button",
+                                        class:
+                                          "mcsm-portal-source-toggle__refresh",
+                                        disabled: realLoading.value,
+                                        onClick: refreshRealData,
+                                      },
+                                      realLoading.value
+                                        ? "Refreshing..."
+                                        : "Refresh real data",
+                                    )
+                                  : null,
+                                realError.value
+                                  ? h(
+                                      "p",
+                                      {
+                                        class:
+                                          "mcsm-portal-source-toggle__error",
+                                      },
+                                      realError.value,
+                                    )
+                                  : h(
+                                      "p",
+                                      {
+                                        class:
+                                          "mcsm-portal-source-toggle__hint",
+                                      },
+                                      rpc.value?.realDataAvailable
+                                        ? "Switch between generated mock content and live MCSManager data."
+                                        : "Switch between generated mock content and live MCSManager data. Configure MCSManager endpoint and API key to enable Real.",
+                                    ),
                               ]),
+                              h("hr"),
+                              h("h2", "Component"),
+                              h("dl", { class: "mcsm-portal-code-meta" }, [
+                                h("dt", "Renderer"),
+                                h("dd", selectedLayout.value.renderer),
+                                h("dt", "Component"),
+                                h("dd", [
+                                  h("code", selectedLayout.value.componentPath),
+                                  h("small", selectedLayout.value.exportName),
+                                ]),
+                              ]),
+                              h("hr"),
+                              h("h2", "Background"),
+                              h(
+                                "div",
+                                { class: "mcsm-portal-texture-preview" },
+                                [
+                                  activeData.value.backgroundTile
+                                    ? h("img", {
+                                        src: activeData.value.backgroundTile,
+                                        alt:
+                                          activeData.value.backgroundTexture ??
+                                          "Selected background texture",
+                                      })
+                                    : h("div", {
+                                        class:
+                                          "mcsm-portal-texture-preview__empty",
+                                      }),
+                                  h(
+                                    "span",
+                                    activeData.value.backgroundTexture ||
+                                      "None",
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
-                        ]),
-                      ])
+                          h(
+                            "section",
+                            {
+                              class: "mcsm-portal-preview-column",
+                              style: {
+                                "--mcsm-preview-width": `${selectedLayout.value.previewWidth}px`,
+                              },
+                            },
+                            [
+                              h("div", { class: "mcsm-portal-panel" }, [
+                                h(
+                                  "div",
+                                  { class: "mcsm-portal-panel__heading" },
+                                  [
+                                    h("h2", selectedLayout.value.name),
+                                    h(
+                                      "span",
+                                      capitalize(activeSourceLabel.value),
+                                    ),
+                                  ],
+                                ),
+                                h("div", { class: "mcsm-portal-stage" }, [
+                                  renderComponentPreview(
+                                    selectedLayout.value,
+                                    activeData.value,
+                                  ),
+                                ]),
+                              ]),
+                              h(
+                                "div",
+                                {
+                                  class:
+                                    "mcsm-portal-panel mcsm-portal-mock-summary",
+                                },
+                                [
+                                  h("h2", "Data"),
+                                  h(
+                                    "div",
+                                    { class: "mcsm-portal-summary-grid" },
+                                    [
+                                      summaryItem(
+                                        "Brand",
+                                        activeData.value.portalName,
+                                      ),
+                                      summaryItem(
+                                        "Node title",
+                                        activeData.value.nodeTitle,
+                                      ),
+                                      summaryItem(
+                                        "Server title",
+                                        activeData.value.serverTitle,
+                                      ),
+                                      summaryItem(
+                                        "Generated",
+                                        formatDate(
+                                          activeData.value.generatedAt,
+                                        ),
+                                      ),
+                                      summaryItem(
+                                        "Nodes",
+                                        String(activeData.value.nodes.length),
+                                      ),
+                                      summaryItem(
+                                        "Servers",
+                                        String(activeData.value.servers.length),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
                     : h(
                         "section",
                         { class: "mcsm-portal-panel" },
@@ -409,7 +495,8 @@ const ReactLayoutHost = defineComponent<{
       const parent = frameElement.parentElement;
       const parentStyle = parent ? getComputedStyle(parent) : undefined;
       const horizontalPadding = parentStyle
-        ? parseFloat(parentStyle.paddingLeft) + parseFloat(parentStyle.paddingRight)
+        ? parseFloat(parentStyle.paddingLeft) +
+          parseFloat(parentStyle.paddingRight)
         : 0;
       const availableWidth = parent
         ? parent.clientWidth - horizontalPadding
@@ -439,7 +526,8 @@ const ReactLayoutHost = defineComponent<{
     onMounted(() => {
       resizeObserver = new ResizeObserver(updateScale);
       if (frame.value) resizeObserver.observe(frame.value);
-      if (frame.value?.parentElement) resizeObserver.observe(frame.value.parentElement);
+      if (frame.value?.parentElement)
+        resizeObserver.observe(frame.value.parentElement);
       if (host.value) resizeObserver.observe(host.value);
       updateScale();
     });
@@ -450,20 +538,27 @@ const ReactLayoutHost = defineComponent<{
       root = undefined;
     });
 
-    return () => h("div", {
-      ref: frame,
-      class: "mcsm-react-frame",
-      style: {
-        width: `${props.layout.previewWidth * scale.value}px`,
-        height: naturalHeight.value ? `${naturalHeight.value * scale.value}px` : undefined,
-        "--mcsm-preview-scale": String(scale.value),
-      },
-    }, [
-      h("div", {
-        ref: host,
-        class: "mcsm-react-host",
-      }),
-    ]);
+    return () =>
+      h(
+        "div",
+        {
+          ref: frame,
+          class: "mcsm-react-frame",
+          style: {
+            width: `${props.layout.previewWidth * scale.value}px`,
+            height: naturalHeight.value
+              ? `${naturalHeight.value * scale.value}px`
+              : undefined,
+            "--mcsm-preview-scale": String(scale.value),
+          },
+        },
+        [
+          h("div", {
+            ref: host,
+            class: "mcsm-react-host",
+          }),
+        ],
+      );
   },
 });
 

@@ -1,6 +1,13 @@
 /** @jsxImportSource react */
 
-import { bytesPair, ImageShell, Meter, percent, Stat } from "./components";
+import {
+  bytesPair,
+  cn,
+  ImageShell,
+  Meter,
+  percent,
+  Stat,
+} from "./components";
 import type { VisualizationLayoutProps } from "./types";
 
 export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
@@ -16,20 +23,27 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
       generatedAt={data.generatedAt}
       backgroundTile={data.backgroundTile}
     >
-      <section className="mcsm-node-grid">
+      <section className="grid gap-3">
         {data.nodes.length ? data.nodes.map((node) => (
           <div
             key={node.id}
-            className={`mcsm-node-card ${node.online ? "is-online" : "is-offline"}`}
+            className={cn("border-2 border-white/20 p-3.5", {
+              "bg-black/40": node.online,
+              "bg-transparent": !node.online,
+            })}
           >
-            <header>
+            <header className="flex items-start justify-between gap-4">
               <div>
-                <strong>{node.name}</strong>
-                <span>{node.address ?? node.id}</span>
+                <strong className="block text-lg font-normal">{node.name}</strong>
+                <span className="mt-1 block opacity-75">
+                  {node.address ?? node.id}
+                </span>
               </div>
-              <em>{node.online ? "Online" : "Offline"}</em>
+              <em className="border-2 border-white/30 bg-black/35 px-2.5 py-1 not-italic">
+                {node.online ? "Online" : "Offline"}
+              </em>
             </header>
-            <div className="mcsm-meter-list">
+            <div className="my-4 grid grid-cols-3 gap-2.5">
               <Meter label="CPU" value={percent(node.cpuUsage)} />
               <Meter
                 label="Memory"
@@ -40,7 +54,7 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
                 value={bytesPair(node.diskUsed, node.diskTotal)}
               />
             </div>
-            <footer>
+            <footer className="grid grid-cols-3 gap-2.5">
               <Stat
                 label="Instances"
                 value={`${node.instanceRunning ?? 0}/${node.instanceTotal ?? 0}`}
@@ -48,10 +62,16 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
               <Stat label="Platform" value={node.platform ?? "unknown"} />
               <Stat label="Version" value={node.version ?? "unknown"} />
             </footer>
-            {node.remark ? <p>{node.remark}</p> : null}
+            {node.remark ? (
+              <p className="m-0 mt-3 leading-[1.45] opacity-80">
+                {node.remark}
+              </p>
+            ) : null}
           </div>
         )) : (
-          <div className="mcsm-empty-state">No nodes available</div>
+          <div className="grid min-h-[220px] place-items-center text-center font-minecraft text-[22px] opacity-75">
+            No nodes available
+          </div>
         )}
       </section>
     </ImageShell>

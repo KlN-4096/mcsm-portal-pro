@@ -1,0 +1,39 @@
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .mcsm-image-base {
+    --mcsm-background-tile: none;
+    --mcsm-background-tile-size: 64px 64px;
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.58)),
+      var(--mcsm-background-tile);
+    background-position:
+      center center,
+      center center;
+    background-repeat: no-repeat, repeat;
+    background-size:
+      100% 100%,
+      var(--mcsm-background-tile-size);
+    image-rendering: pixelated;
+    text-rendering: geometricPrecision;
+  }
+
+  .mcsm-image-base,
+  .mcsm-image-base * {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+  }
+
+  .mcsm-server-icon-surface {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 48%),
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.08) 0 6px,
+        rgba(0, 0, 0, 0.1) 6px 12px
+      ),
+      #535353;
+  }
+}

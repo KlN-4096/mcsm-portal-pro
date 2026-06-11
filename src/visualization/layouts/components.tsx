@@ -17,18 +17,25 @@ export function ImageShell(props: {
 }) {
   return (
     <article
-      className={`mcsm-image ${props.className}`}
+      className={cn(
+        "mcsm-image-base box-border min-h-[480px] max-w-full bg-black p-8 font-minecraft text-white",
+        props.className,
+      )}
       style={createImageStyle(props.width, props.backgroundTile)}
     >
-      <header className="mcsm-image-header">
+      <header className="mb-6 flex items-start justify-between gap-5">
         <div>
-          <p>{props.brand}</p>
-          <h3>{props.title}</h3>
-          <span>{props.subtitle}</span>
+          <p className="m-0 mb-2 font-minecraft-five text-sm">{props.brand}</p>
+          <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
+            {props.title}
+          </h3>
+          <span className="opacity-75">{props.subtitle}</span>
         </div>
-        <div className="mcsm-image-meta">
+        <div className="grid justify-items-end gap-1.5 text-right opacity-75">
           <time>{formatDate(props.generatedAt)}</time>
-          <small className="mcsm-image-copyright">{COPYRIGHT_TEXT}</small>
+          <small className="font-minecraft text-xs opacity-75">
+            {COPYRIGHT_TEXT}
+          </small>
         </div>
       </header>
       {props.children}
@@ -47,8 +54,8 @@ export function createImageStyle(width: number, backgroundTile?: string) {
 
 export function Stat(props: { label: string; value: string }) {
   return (
-    <span className="mcsm-stat">
-      <small>{props.label}</small>
+    <span className="grid gap-1 border-2 border-white/20 bg-black/30 p-2">
+      <small className="opacity-75">{props.label}</small>
       <strong>{props.value}</strong>
     </span>
   );
@@ -56,8 +63,8 @@ export function Stat(props: { label: string; value: string }) {
 
 export function Meter(props: { label: string; value: string }) {
   return (
-    <div className="mcsm-meter">
-      <span>{props.label}</span>
+    <div className="grid gap-1 border-2 border-white/20 bg-black/30 p-2">
+      <span className="opacity-75">{props.label}</span>
       <strong>{props.value}</strong>
     </div>
   );
@@ -98,4 +105,24 @@ export function formatDate(value: string) {
 function formatBytes(value: number) {
   const gib = value / 1024 ** 3;
   return `${gib.toFixed(gib >= 10 ? 0 : 1)} GiB`;
+}
+
+export function cn(
+  ...values: Array<
+    | string
+    | false
+    | null
+    | undefined
+    | Record<string, boolean | null | undefined>
+  >
+) {
+  return values
+    .flatMap((value) => {
+      if (!value) return [];
+      if (typeof value === "string") return [value];
+      return Object.entries(value)
+        .filter(([, enabled]) => enabled)
+        .map(([className]) => className);
+    })
+    .join(" ");
 }
