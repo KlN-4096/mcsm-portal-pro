@@ -20,6 +20,21 @@ export interface ImageConfig {
   showGeneratedAt: boolean;
 }
 
+export interface TextConfig {
+  style: "compact" | "detailed";
+  showHeader: boolean;
+  showSeparators: boolean;
+}
+
+export interface OutputConfig {
+  mode: "text" | "image";
+  text: TextConfig;
+}
+
+export interface PreviewConfig {
+  enabled: boolean;
+}
+
 export interface MinecraftConfig {
   pageSize: number;
   typeKeywords: string[];
@@ -29,6 +44,8 @@ export interface Config {
   connection: ConnectionConfig;
   command: CommandConfig;
   image: ImageConfig;
+  output: OutputConfig;
+  preview: PreviewConfig;
   minecraft: MinecraftConfig;
   fields: ServerFieldVisibility;
   cacheTtl: number;
@@ -77,11 +94,9 @@ export const Config: Schema<Config> = Schema.intersect([
     image: Schema.object({
       title: Schema.string()
         .description("Title displayed in generated portal images.")
-        .default("MCSManager Portal"),
+        .default("MCSM Portal"),
       theme: Schema.union([
-        Schema.const("auto").description(
-          "Auto (light/dark based on local sunrise/sunset time)",
-        ),
+        Schema.const("auto").description("Auto (follows local sunrise/sunset)"),
         Schema.const("light").description("Light"),
         Schema.const("dark").description("Dark"),
       ] as const)
@@ -94,9 +109,42 @@ export const Config: Schema<Config> = Schema.intersect([
         .description("Show generated time in future image outputs.")
         .default(true),
     }).description("Image settings"),
+    output: Schema.object({
+      mode: Schema.union([
+        Schema.const("text").description("Text only"),
+        Schema.const("image").description(
+          "Image when available, text fallback for now",
+        ),
+      ] as const)
+        .description("Bot result output mode.")
+        .default("text"),
+      text: Schema.object({
+        style: Schema.union([
+          Schema.const("compact").description("Compact"),
+          Schema.const("detailed").description("Detailed"),
+        ] as const)
+          .description("Text message formatting style.")
+          .default("detailed"),
+        showHeader: Schema.boolean()
+          .description("Show title and summary lines in text output.")
+          .default(true),
+        showSeparators: Schema.boolean()
+          .description("Separate text cards with blank lines.")
+          .default(true),
+      }).description("Text output settings"),
+    }).description("Output settings"),
+    preview: Schema.object({
+      enabled: Schema.boolean()
+        .description(
+          "Register the code-authored visualization preview page in Koishi Console when available.",
+        )
+        .default(true),
+    }).description("Visualization preview"),
     minecraft: Schema.object({
       pageSize: Schema.number()
-        .description("Number of instances to request from each MCSManager node per page.")
+        .description(
+          "Number of instances to request from each MCSManager node per page.",
+        )
         .min(1)
         .max(50)
         .default(50),

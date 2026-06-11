@@ -1,52 +1,111 @@
-import type { ImageConfig } from "./config";
+import type { Config } from "./config";
 import type { MinecraftInstance, NodeStatus, ServerFieldVisibility } from "./types";
 
 export interface RenderText {
   noNodes: string;
   noServers: string;
+  nodeSummary: (online: number, total: number) => string;
+  serverSummary: (total: number) => string;
   online: string;
   offline: string;
   cpu: string;
   memory: string;
+  address: string;
+  status: string;
+  node: string;
+  players: string;
+  version: string;
+  motd: string;
+  modList: string;
+  tags: string;
+  unknown: string;
   instanceCounts: (running: number, stopped: number, total: number) => string;
   playerCount: (online: number, max: number | string) => string;
   mods: (count: number) => string;
+  statusLabel: (status: MinecraftInstance["status"]) => string;
 }
 
-export function renderNodeStatusPlaceholder(config: ImageConfig, nodes: NodeStatus[], text: RenderText) {
+export function renderNodeStatusText(config: Config, nodes: NodeStatus[], text: RenderText) {
   if (!nodes.length) return text.noNodes;
 
-  return [
-    config.title,
-    ...nodes.map((node) => {
-      const parts = [
-        node.online ? text.online : text.offline,
-        node.address,
-        formatUsage(text.cpu, node.cpuUsage, "%"),
-        formatBytesUsage(text.memory, node.memoryUsed, node.memoryTotal),
-        formatInstanceCounts(node, text),
-      ].filter(Boolean);
-      return `${node.name}: ${parts.join(" | ")}`;
-    }),
-  ].join("\n");
+  const separator = config.output.text.showSeparators ? "\n\n" : "\n";
+  const onlineCount = nodes.filter((node) => node.online).length;
+  const output: string[] = [];
+
+  if (config.output.text.showHeader) {
+    output.push(`${config.image.title}\n${text.nodeSummary(onlineCount, nodes.length)}`);
+  }
+
+  output.push(...nodes.map((node) => renderNode(node, config, text)));
+  return output.join(separator);
 }
 
-export function renderServerListPlaceholder(servers: MinecraftInstance[], fields: ServerFieldVisibility, text: RenderText) {
+export function renderServerListText(config: Config, servers: MinecraftInstance[], text: RenderText) {
+  const { fields } = config;
   if (!servers.length) return text.noServers;
 
-  return servers.map((server) => {
-    const parts = [server.name];
-    if (fields.status) parts.push(server.status);
+  const separator = config.output.text.showSeparators ? "\n\n" : "\n";
+  const output: string[] = [];
+
+  if (config.output.text.showHeader) {
+    output.push(`${config.image.title}\n${text.serverSummary(servers.length)}`);
+  }
+
+  output.push(...servers.map((server) => renderServer(server, fields, config, text)));
+  return output.join(separator);
+}
+
+function renderNode(node: NodeStatus, config: Config, text: RenderText) {
+  const status = node.online ? text.online : text.offline;
+  if (config.output.text.style === "compact") {
+    const parts = [
+      status,
+      node.address,
+      formatUsage(text.cpu, node.cpuUsage, "%"),
+      formatBytesUsage(text.memory, node.memoryUsed, node.memoryTotal),
+      formatInstanceCounts(node, text),
+    ].filter(Boolean);
+    return `- ${node.name}: ${parts.join(" | ")}`;
+  }
+
+  const lines = [
+    `- ${node.name} (${status})`,
+    formatField(text.address, node.address),
+    formatField(text.cpu, formatNumber(node.cpuUsage, "%")),
+    formatField(text.memory, formatBytesPair(node.memoryUsed, node.memoryTotal)),
+    formatInstanceCounts(node, text),
+    formatField(text.version, node.version),
+  ].filter(Boolean);
+  return lines.join("\n  ");
+}
+
+function renderServer(server: MinecraftInstance, fields: ServerFieldVisibility, config: Config, text: RenderText) {
+  if (config.output.text.style === "compact") {
+    const parts = [text.statusLabel(server.status)];
     if (fields.node && server.nodeName) parts.push(server.nodeName);
     if (fields.address && server.address) parts.push(server.address);
     if (fields.onlineCount && server.onlinePlayers !== undefined) {
       parts.push(text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"));
     }
     if (fields.version && server.version) parts.push(server.version);
-    if (fields.motd && server.motd) parts.push(server.motd);
     if (fields.modList && server.modList.length) parts.push(text.mods(server.modList.length));
-    return parts.join(" - ");
-  }).join("\n");
+    return `- ${server.name}: ${parts.join(" | ")}`;
+  }
+
+  const lines = [
+    `- ${server.name}`,
+    fields.status ? formatField(text.status, text.statusLabel(server.status)) : undefined,
+    fields.node ? formatField(text.node, server.nodeName) : undefined,
+    fields.address ? formatField(text.address, server.address) : undefined,
+    fields.onlineCount && server.onlinePlayers !== undefined
+      ? formatField(text.players, text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"))
+      : undefined,
+    fields.version ? formatField(text.version, server.version) : undefined,
+    fields.motd ? formatField(text.motd, server.motd) : undefined,
+    fields.modList && server.modList.length ? formatField(text.modList, text.mods(server.modList.length)) : undefined,
+    server.tags.length ? formatField(text.tags, server.tags.join(", ")) : undefined,
+  ].filter(Boolean);
+  return lines.join("\n  ");
 }
 
 function formatUsage(label: string, value?: number, suffix = "") {
@@ -57,6 +116,11 @@ function formatUsage(label: string, value?: number, suffix = "") {
 function formatBytesUsage(label: string, used?: number, total?: number) {
   if (used === undefined || total === undefined) return;
   return `${label} ${formatBytes(used)}/${formatBytes(total)}`;
+}
+
+function formatBytesPair(used?: number, total?: number) {
+  if (used === undefined || total === undefined) return;
+  return `${formatBytes(used)} / ${formatBytes(total)}`;
 }
 
 function formatBytes(value: number) {
@@ -75,4 +139,14 @@ function formatInstanceCounts(node: NodeStatus, text: RenderText) {
   const running = node.instanceRunning ?? 0;
   const stopped = node.instanceStopped ?? 0;
   return text.instanceCounts(running, stopped, node.instanceTotal);
+}
+
+function formatField(label: string, value?: string) {
+  if (!value) return;
+  return `${label}: ${value}`;
+}
+
+function formatNumber(value?: number, suffix = "") {
+  if (value === undefined) return;
+  return `${value.toFixed(1)}${suffix}`;
 }

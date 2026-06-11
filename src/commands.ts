@@ -1,7 +1,7 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
 import type { Config } from "./config";
-import { renderNodeStatusPlaceholder, renderServerListPlaceholder, type RenderText } from "./render";
+import { renderNodeStatusText, renderServerListText, type RenderText } from "./render";
 import { resolveServerAddress } from "./servers";
 
 export function registerCommands(ctx: Context, config: Config, client: MCSManagerClient) {
@@ -59,7 +59,7 @@ async function checkConnection(session: Session, scope: string, client: MCSManag
 async function showNodeStatus(session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const nodes = await client.listNodes();
-    return renderNodeStatusPlaceholder(config.image, nodes, createRenderText(session, scope, config));
+    return renderNodeStatusText(config, nodes, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "status-failed", { message: formatErrorMessage(session, scope, error) });
   }
@@ -68,7 +68,7 @@ async function showNodeStatus(session: Session, scope: string, config: Config, c
 async function showMinecraftServers(session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const servers = await client.listMinecraftInstances();
-    return renderServerListPlaceholder(servers, config.fields, createRenderText(session, scope, config));
+    return renderServerListText(config, servers, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "servers-failed", { message: formatErrorMessage(session, scope, error) });
   }
@@ -104,13 +104,25 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
   return {
     noNodes: text(session, scope, "render.no-nodes", { title: config.image.title }),
     noServers: text(session, scope, "render.no-servers"),
+    nodeSummary: (online, total) => text(session, scope, "render.node-summary", { online, total }),
+    serverSummary: (total) => text(session, scope, "render.server-summary", { total }),
     online: text(session, scope, "render.online"),
     offline: text(session, scope, "render.offline"),
     cpu: text(session, scope, "render.cpu"),
     memory: text(session, scope, "render.memory"),
+    address: text(session, scope, "render.address"),
+    status: text(session, scope, "render.status"),
+    node: text(session, scope, "render.node"),
+    players: text(session, scope, "render.players"),
+    version: text(session, scope, "render.version"),
+    motd: text(session, scope, "render.motd"),
+    modList: text(session, scope, "render.mod-list"),
+    tags: text(session, scope, "render.tags"),
+    unknown: text(session, scope, "render.unknown"),
     instanceCounts: (running, stopped, total) => text(session, scope, "render.instance-counts", { running, stopped, total }),
     playerCount: (online, max) => text(session, scope, "render.player-count", { online, max }),
     mods: (count) => text(session, scope, "render.mods", { count }),
+    statusLabel: (status) => text(session, scope, `render.status-labels.${status}`),
   };
 }
 

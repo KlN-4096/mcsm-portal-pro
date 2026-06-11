@@ -31,8 +31,12 @@ function createLocale(commandName: string, messages: LocaleMessages) {
 
 interface LocaleMessages {
   commands: Record<"root" | "check" | "status" | "servers" | "addr" | "refresh", string>;
-  messages: Record<string, string | Record<string, string>>;
+  messages: LocaleMessageTree;
 }
+
+type LocaleMessageTree = {
+  [key: string]: string | LocaleMessageTree;
+};
 
 const enUS: LocaleMessages = {
   commands: {
@@ -59,13 +63,31 @@ const enUS: LocaleMessages = {
     render: {
       "no-nodes": "{title}: no MCSManager nodes were returned.",
       "no-servers": "No Minecraft server instances were returned by MCSManager.",
+      "node-summary": "Nodes: {online}/{total} online",
+      "server-summary": "Minecraft servers: {total}",
       online: "online",
       offline: "offline",
       cpu: "CPU",
       memory: "Memory",
+      address: "Address",
+      status: "Status",
+      node: "Node",
+      players: "Players",
+      version: "Version",
+      motd: "MOTD",
+      "mod-list": "Mods",
+      tags: "Tags",
+      unknown: "unknown",
       "instance-counts": "Instances {running} running / {stopped} stopped / {total} total",
       "player-count": "{online}/{max} online",
       mods: "{count} mods",
+      "status-labels": {
+        running: "running",
+        stopped: "stopped",
+        starting: "starting",
+        stopping: "stopping",
+        unknown: "unknown",
+      },
     },
   },
 };
@@ -95,13 +117,31 @@ const zhCN: LocaleMessages = {
     render: {
       "no-nodes": "{title}：MCSManager 没有返回节点。",
       "no-servers": "MCSManager 没有返回 Minecraft 服务器实例。",
+      "node-summary": "节点：{online}/{total} 在线",
+      "server-summary": "Minecraft 服务器：{total}",
       online: "在线",
       offline: "离线",
       cpu: "CPU",
       memory: "内存",
+      address: "地址",
+      status: "状态",
+      node: "节点",
+      players: "玩家",
+      version: "版本",
+      motd: "MOTD",
+      "mod-list": "模组",
+      tags: "标签",
+      unknown: "未知",
       "instance-counts": "实例 {running} 运行 / {stopped} 停止 / 共 {total}",
       "player-count": "{online}/{max} 在线",
       mods: "{count} 个模组",
+      "status-labels": {
+        running: "运行中",
+        stopped: "已停止",
+        starting: "启动中",
+        stopping: "停止中",
+        unknown: "未知",
+      },
     },
   },
 };
