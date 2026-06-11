@@ -1,5 +1,11 @@
+import { h } from "koishi";
 import type { Config } from "./config";
 import type { MinecraftInstance, NodeStatus, ServerFieldVisibility } from "./types";
+import {
+  renderNodeStatusVisualization,
+  renderServerListVisualization,
+  renderVisualizationSvgDataUri,
+} from "./visualization/renderer";
 
 export interface RenderText {
   noNodes: string;
@@ -23,6 +29,22 @@ export interface RenderText {
   playerCount: (online: number, max: number | string) => string;
   mods: (count: number) => string;
   statusLabel: (status: MinecraftInstance["status"]) => string;
+}
+
+export function renderNodeStatus(config: Config, nodes: NodeStatus[], text: RenderText) {
+  if (!nodes.length) return text.noNodes;
+  if (config.output.mode === "image") {
+    return h.image(renderVisualizationSvgDataUri(renderNodeStatusVisualization(config, nodes)));
+  }
+  return renderNodeStatusText(config, nodes, text);
+}
+
+export function renderServerList(config: Config, servers: MinecraftInstance[], text: RenderText) {
+  if (!servers.length) return text.noServers;
+  if (config.output.mode === "image") {
+    return h.image(renderVisualizationSvgDataUri(renderServerListVisualization(config, servers)));
+  }
+  return renderServerListText(config, servers, text);
 }
 
 export function renderNodeStatusText(config: Config, nodes: NodeStatus[], text: RenderText) {

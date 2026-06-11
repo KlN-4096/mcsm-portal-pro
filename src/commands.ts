@@ -1,7 +1,7 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
 import type { Config } from "./config";
-import { renderNodeStatusText, renderServerListText, type RenderText } from "./render";
+import { renderNodeStatus, renderServerList, type RenderText } from "./render";
 import { resolveServerAddress } from "./servers";
 
 export function registerCommands(ctx: Context, config: Config, client: MCSManagerClient) {
@@ -59,7 +59,7 @@ async function checkConnection(session: Session, scope: string, client: MCSManag
 async function showNodeStatus(session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const nodes = await client.listNodes();
-    return renderNodeStatusText(config, nodes, createRenderText(session, scope, config));
+    return renderNodeStatus(config, nodes, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "status-failed", { message: formatErrorMessage(session, scope, error) });
   }
@@ -68,7 +68,7 @@ async function showNodeStatus(session: Session, scope: string, config: Config, c
 async function showMinecraftServers(session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const servers = await client.listMinecraftInstances();
-    return renderServerListText(config, servers, createRenderText(session, scope, config));
+    return renderServerList(config, servers, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "servers-failed", { message: formatErrorMessage(session, scope, error) });
   }
