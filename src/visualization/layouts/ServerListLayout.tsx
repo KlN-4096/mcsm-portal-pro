@@ -9,6 +9,7 @@ import {
   formatPlayers,
   serverLatencyLabel,
 } from "./components";
+import { formatGameVersion } from "../../minecraft-server";
 import type { MinecraftInstance, MinecraftTextSegment } from "../../types";
 import type { VisualizationLayoutProps } from "./types";
 
@@ -40,7 +41,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
             <article
               key={server.id}
               className={cn(
-                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_156px] items-stretch gap-3 border-2 p-[6px_12px_6px_6px] hover:border-white/30 hover:bg-black/35",
+                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_156px] items-stretch gap-3 border-2 p-[6px_12px_6px_6px]",
                 {
                   "border-white/30 bg-black/35": server.status === "running",
                   "border-white/20 bg-transparent": isInactiveServer(server),
@@ -128,7 +129,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
       </section>
       <div className="min-h-0.5 flex-auto" />
 
-      <footer className="mx-[-32px] mb-[-20px] mt-0 flex basis-[46px] items-end justify-between gap-4 bg-black/60 px-8 pb-3 pt-2.5">
+      <footer className="border-t-2 border-black/30 mx-[-32px] mb-[-20px] mt-0 flex basis-[46px] items-end justify-between gap-4 bg-black/60 px-8 pb-3 pt-2.5">
         <small className="font-minecraft text-sm">
           <FormattedText text={data.copyright} />
         </small>
@@ -185,40 +186,6 @@ function formatLatency(server: MinecraftInstance) {
   if (isInactiveServer(server)) return "";
   if (typeof server.latencyMs !== "number") return "? ms";
   return `${Math.max(0, Math.round(server.latencyMs))} ms`;
-}
-
-function formatGameVersion(server: MinecraftInstance) {
-  return [server.version ?? "Minecraft", resolveGameType(server)]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function resolveGameType(server: MinecraftInstance) {
-  const sources = [server.type, ...server.modList].filter(
-    (value): value is string => Boolean(value),
-  );
-
-  for (const source of sources) {
-    const normalized = source.toLowerCase();
-    if (normalized.includes("neoforge")) return "NeoForge";
-    if (normalized.includes("fabric")) return "Fabric";
-    if (normalized.includes("quilt")) return "Quilt";
-    if (normalized.includes("forge")) return "Forge";
-    if (normalized.includes("paper")) return "Paper";
-    if (normalized.includes("spigot")) return "Spigot";
-    if (normalized.includes("bukkit")) return "Bukkit";
-    if (normalized.includes("purpur")) return "Purpur";
-    if (normalized.includes("folia")) return "Folia";
-    if (normalized.includes("vanilla")) return "Vanilla";
-    if (normalized.includes("bedrock")) return "Bedrock";
-  }
-
-  const type = server.type
-    ?.split(/[/:|\\]+/)
-    .filter(Boolean)
-    .at(-1);
-  if (!type || type.toLowerCase() === "minecraft") return;
-  return type.slice(0, 1).toUpperCase() + type.slice(1);
 }
 
 function signalBarClass(server: MinecraftInstance, index: number) {

@@ -1,6 +1,9 @@
 import { Schema } from "koishi";
 import type { ServerFieldVisibility } from "./types";
-import { listBackgroundTextureNames } from "./visualization/styles";
+import {
+  listBackgroundTextureNames,
+  RANDOM_BACKGROUND_TEXTURE,
+} from "./visualization/styles";
 
 type RecursivePartial<T> = {
   [K in keyof T]?: T[K] extends object ? RecursivePartial<T[K]> : T[K];
@@ -172,7 +175,7 @@ export const Config = Schema.object({
     .description("Image settings"),
   output: Schema.object({
     mode: Schema.union([
-      Schema.const("text").description("Text only"),
+      Schema.const("text").description("Text"),
       Schema.const("image").description("Image"),
     ] as const)
       .description("Bot result output mode.")
@@ -344,6 +347,7 @@ function createBackgroundTextureSchema() {
   const names = listBackgroundTextureNames();
   const options = [
     Schema.const("").description("None"),
+    Schema.const(RANDOM_BACKGROUND_TEXTURE).description("Random"),
     ...names.map((name) => Schema.const(name).description(name)),
   ];
 

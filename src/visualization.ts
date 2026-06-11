@@ -10,7 +10,7 @@ import {
   type Config,
 } from "./config";
 import type { MCSManagerClient } from "./client";
-import { resolveBackgroundTextureDataUri } from "./visualization/styles";
+import { resolveBackgroundTextureChoice } from "./visualization/styles";
 
 export type VisualizationSurface = "node-status" | "server-list";
 
@@ -34,6 +34,7 @@ export interface VisualizationMockData {
   generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
+  textPreviews?: Partial<Record<VisualizationSurface, string>>;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
 }
@@ -177,6 +178,9 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
 
 function createVisualizationDataBase(config?: Config) {
   const showGeneratedAt = config?.image.showGeneratedAt ?? true;
+  const backgroundTexture = resolveBackgroundTextureChoice(
+    config?.image.backgroundTexture,
+  );
   return {
     portalName: config ? resolvePortalTitle(config) : PORTAL_IMAGE_BRAND,
     copyright: DEFAULT_COPYRIGHT_TEXT,
@@ -184,8 +188,8 @@ function createVisualizationDataBase(config?: Config) {
     serverTitle: config ? resolveServerImageTitle(config) : DEFAULT_SERVER_IMAGE_TITLE,
     showGeneratedAt,
     generatedAt: showGeneratedAt ? new Date().toISOString() : undefined,
-    backgroundTexture: config?.image.backgroundTexture || undefined,
-    backgroundTile: resolveBackgroundTextureDataUri(config?.image.backgroundTexture),
+    backgroundTexture: backgroundTexture.name || undefined,
+    backgroundTile: backgroundTexture.dataUri,
   };
 }
 

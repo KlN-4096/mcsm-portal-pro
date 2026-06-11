@@ -2,7 +2,16 @@ import { resolve } from "path";
 import type { Context } from "koishi";
 import type { MCSManagerClient } from "./client";
 import type { Config } from "./config";
-import { createPreviewEntryData, createRealPreviewData } from "./visualization";
+import {
+  createPreviewEntryData,
+  createRealPreviewData,
+  type VisualizationMockData,
+} from "./visualization";
+import {
+  createDefaultRenderText,
+  renderNodeStatusText,
+  renderServerListText,
+} from "./render";
 
 interface ConsoleLike {
   addEntry(files: { dev: string; prod: string | string[] }, data?: () => unknown): unknown;
@@ -30,7 +39,7 @@ export function registerPreviewEntry(ctx: Context, config: Config, client: MCSMa
     try {
       return {
         ok: true,
-        data: await createRealPreviewData(config, client),
+        data: withTextPreviews(await createRealPreviewData(config, client), config),
       };
     } catch (error) {
       return {
@@ -43,5 +52,22 @@ export function registerPreviewEntry(ctx: Context, config: Config, client: MCSMa
   console.addEntry({
     dev: resolve(__dirname, "../client/index.ts"),
     prod: resolve(__dirname, "../dist"),
-  }, () => createPreviewEntryData(config, client.configured));
+  }, () => {
+    const data = createPreviewEntryData(config, client.configured);
+    return {
+      ...data,
+      mock: withTextPreviews(data.mock, config),
+    };
+  });
+}
+
+function withTextPreviews(data: VisualizationMockData, config: Config) {
+  const text = createDefaultRenderText(config);
+  return {
+    ...data,
+    textPreviews: {
+      "node-status": renderNodeStatusText(config, data.nodes, text),
+      "server-list": renderServerListText(config, data.servers, text),
+    },
+  };
 }

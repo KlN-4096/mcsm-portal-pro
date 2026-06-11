@@ -44,6 +44,8 @@ const fonts: FontSource[] = [
 let cachedCss: string | undefined;
 const cachedBackgroundTextures = new Map<string, string | undefined>();
 
+export const RANDOM_BACKGROUND_TEXTURE = "__random__";
+
 export function createVisualizationCss() {
   cachedCss ??= `${createFontFaceCss()}\n${readVisualizationLayoutCss()}`;
   return cachedCss;
@@ -121,6 +123,22 @@ export function resolveBackgroundTextureDataUri(textureName?: string) {
   const dataUri = `data:${mime};base64,${readFileSync(path).toString("base64")}`;
   cachedBackgroundTextures.set(textureName, dataUri);
   return dataUri;
+}
+
+export function resolveBackgroundTextureChoice(textureName?: string) {
+  const resolvedName = resolveBackgroundTextureName(textureName);
+  return {
+    name: resolvedName,
+    dataUri: resolveBackgroundTextureDataUri(resolvedName),
+  };
+}
+
+function resolveBackgroundTextureName(textureName?: string) {
+  if (textureName !== RANDOM_BACKGROUND_TEXTURE) return textureName;
+
+  const names = listBackgroundTextureNames();
+  if (!names.length) return "";
+  return names[Math.floor(Math.random() * names.length)];
 }
 
 function createAssetDirectoryCandidates(kind: AssetKind) {

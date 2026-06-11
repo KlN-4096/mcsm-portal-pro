@@ -95,6 +95,7 @@ interface VisualizationMockData {
   generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
+  textPreviews?: Partial<Record<VisualizationSurface, string>>;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
 }
@@ -429,6 +430,29 @@ const PreviewPage = defineComponent({
                                     activeData.value,
                                   ),
                                 ]),
+                                h(
+                                  "div",
+                                  { class: "mcsm-portal-text-preview" },
+                                  [
+                                    h(
+                                      "div",
+                                      {
+                                        class:
+                                          "mcsm-portal-text-preview__heading",
+                                      },
+                                      [
+                                        h("strong", "Text Preview"),
+                                        h("span", selectedLayout.value.surface),
+                                      ],
+                                    ),
+                                    h(
+                                      "pre",
+                                      activeData.value.textPreviews?.[
+                                        selectedLayout.value.surface
+                                      ] ?? "Text preview is unavailable.",
+                                    ),
+                                  ],
+                                ),
                               ]),
                               h(
                                 "div",

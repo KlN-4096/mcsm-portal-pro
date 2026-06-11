@@ -114,6 +114,7 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
     status: text(session, scope, "render.status"),
     node: text(session, scope, "render.node"),
     players: text(session, scope, "render.players"),
+    type: text(session, scope, "render.type"),
     version: text(session, scope, "render.version"),
     motd: text(session, scope, "render.motd"),
     modList: text(session, scope, "render.mod-list"),

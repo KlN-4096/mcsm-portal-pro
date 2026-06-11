@@ -13,7 +13,7 @@ import type { MinecraftInstance, NodeStatus } from "../types";
 import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition, withImageWidth } from "../visualization";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
 import { createVisualizationCss } from "./styles";
-import { resolveBackgroundTextureDataUri } from "./styles";
+import { resolveBackgroundTextureChoice } from "./styles";
 
 export interface VisualizationRenderResult {
   layout: CodeAuthoredLayoutDefinition;
@@ -50,6 +50,9 @@ export function createVisualizationData(
   nodes: NodeStatus[],
   servers: MinecraftInstance[],
 ): VisualizationLayoutData {
+  const backgroundTexture = resolveBackgroundTextureChoice(
+    config.image.backgroundTexture,
+  );
   return {
     portalName: resolvePortalTitle(config),
     copyright: DEFAULT_COPYRIGHT_TEXT,
@@ -57,8 +60,8 @@ export function createVisualizationData(
     serverTitle: resolveServerImageTitle(config),
     showGeneratedAt: config.image.showGeneratedAt,
     generatedAt: config.image.showGeneratedAt ? new Date().toISOString() : undefined,
-    backgroundTexture: config.image.backgroundTexture || undefined,
-    backgroundTile: resolveBackgroundTextureDataUri(config.image.backgroundTexture),
+    backgroundTexture: backgroundTexture.name || undefined,
+    backgroundTile: backgroundTexture.dataUri,
     nodes,
     servers,
   };

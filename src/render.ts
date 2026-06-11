@@ -10,6 +10,7 @@ import {
   renderServerListVisualization,
   renderVisualizationSvgDataUri,
 } from "./visualization/renderer";
+import { resolveGameType } from "./minecraft-server";
 
 export interface RenderText {
   noNodes: string;
@@ -24,6 +25,7 @@ export interface RenderText {
   status: string;
   node: string;
   players: string;
+  type: string;
   version: string;
   motd: string;
   modList: string;
@@ -33,6 +35,34 @@ export interface RenderText {
   playerCount: (online: number, max: number | string) => string;
   mods: (count: number) => string;
   statusLabel: (status: MinecraftInstance["status"]) => string;
+}
+
+export function createDefaultRenderText(config: Config): RenderText {
+  return {
+    noNodes: `${resolveNodeImageTitle(config)}: no MCSManager nodes were returned.`,
+    noServers: "No Minecraft server instances were returned by MCSManager.",
+    nodeSummary: (online, total) => `Nodes: ${online}/${total} online`,
+    serverSummary: (total) => `Minecraft servers: ${total}`,
+    online: "online",
+    offline: "offline",
+    cpu: "CPU",
+    memory: "Memory",
+    address: "Address",
+    status: "Status",
+    node: "Node",
+    players: "Players",
+    type: "Type",
+    version: "Version",
+    motd: "MOTD",
+    modList: "Mods",
+    tags: "Tags",
+    unknown: "unknown",
+    instanceCounts: (running, stopped, total) =>
+      `Instances ${running} running / ${stopped} stopped / ${total} total`,
+    playerCount: (online, max) => `${online}/${max} online`,
+    mods: (count) => `${count} mods`,
+    statusLabel: (status) => status,
+  };
 }
 
 export function renderNodeStatus(config: Config, nodes: NodeStatus[], text: RenderText) {
@@ -113,6 +143,8 @@ function renderServer(server: MinecraftInstance, fields: ServerFieldVisibility, 
     if (fields.onlineCount && server.onlinePlayers !== undefined) {
       parts.push(text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"));
     }
+    const gameType = resolveGameType(server);
+    if (gameType) parts.push(gameType);
     if (fields.version && server.version) parts.push(server.version);
     if (fields.modList && server.modList.length) parts.push(text.mods(server.modList.length));
     return `- ${server.name}: ${parts.join(" | ")}`;
@@ -126,6 +158,7 @@ function renderServer(server: MinecraftInstance, fields: ServerFieldVisibility, 
     fields.onlineCount && server.onlinePlayers !== undefined
       ? formatField(text.players, text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"))
       : undefined,
+    formatField(text.type, resolveGameType(server)),
     fields.version ? formatField(text.version, server.version) : undefined,
     fields.motd ? formatField(text.motd, server.motd) : undefined,
     fields.modList && server.modList.length ? formatField(text.modList, text.mods(server.modList.length)) : undefined,

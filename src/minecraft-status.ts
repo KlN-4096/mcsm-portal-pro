@@ -112,11 +112,20 @@ function normalizeStatusResponse(value: unknown): MinecraftStatus {
   return {
     motd: description?.text,
     motdSegments: description?.segments,
-    iconUrl: readRecordString(value, "favicon"),
+    iconUrl: normalizeFavicon(readRecordString(value, "favicon")),
     onlinePlayers: readRecordNumber(players, "online"),
     maxPlayers: readRecordNumber(players, "max"),
     version: readRecordString(version, "name"),
   };
+}
+
+function normalizeFavicon(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return;
+  if (/^data:image\//i.test(trimmed)) return trimmed.replace(/\s+/g, "");
+  if (/^[A-Za-z0-9+/=\s]+$/.test(trimmed) && trimmed.length > 100) {
+    return `data:image/png;base64,${trimmed.replace(/\s+/g, "")}`;
+  }
 }
 
 function normalizeDescription(value: unknown): { text: string; segments: MinecraftTextSegment[] } | undefined {

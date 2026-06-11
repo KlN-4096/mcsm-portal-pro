@@ -498,8 +498,8 @@ function readPingAddress(
 
   const pingHost = readString(pingConfig, "ip");
   const pingPort = readNumber(pingConfig, "port");
-  if (pingHost) return formatAddress(pingHost, pingPort);
-  if (!publicHost) return;
+  if (pingHost && !isLocalHost(pingHost)) return formatAddress(pingHost, pingPort);
+  if (!publicHost) return pingHost ? formatAddress(pingHost, pingPort) : undefined;
 
   const publishedPort = findPublishedPort(config, info, pingPort);
   return formatAddress(publicHost, publishedPort ?? pingPort);

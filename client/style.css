@@ -267,6 +267,38 @@ html.dark .mcsm-portal-preview-page {
   background: transparent;
 }
 
+.mcsm-portal-text-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--mcsm-preview-subtle-bg);
+}
+
+.mcsm-portal-text-preview__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mcsm-portal-text-preview__heading span {
+  font-size: 12px;
+  opacity: 0.68;
+}
+
+.mcsm-portal-text-preview pre {
+  overflow: auto;
+  max-height: 360px;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .mcsm-react-frame {
   margin-inline: auto;
   overflow: visible;
