@@ -1,5 +1,6 @@
 import type { Context } from "koishi";
 import type { ConnectionConfig, MinecraftConfig } from "./config";
+import { queryMinecraftStatus } from "./minecraft-status";
 import type {
   InstanceStatus,
   MCSManagerResponse,
@@ -72,7 +73,9 @@ export class MCSManagerClient {
     }
 
     const allInstances = await this.listInstances();
-    const instances = allInstances.filter((instance) => this.isMinecraftInstance(instance));
+    const instances = await this.enrichMinecraftInstances(
+      allInstances.filter((instance) => this.isMinecraftInstance(instance)),
+    );
     const excluded = allInstances.filter((instance) => !this.isMinecraftInstance(instance));
 
     this.debug("minecraft instances filtered", {
@@ -168,7 +171,7 @@ export class MCSManagerClient {
         status: "",
         tag: "[]",
       });
-      const result = normalizeInstancePage(payload, node);
+      const result = normalizeInstancePage(payload, node, this.getPublicHost(node));
       instances.push(...result.instances);
       total = result.total ?? (result.maxPage !== undefined ? result.maxPage * pageSize : undefined);
       this.debug("node instance page loaded", {
@@ -194,7 +197,7 @@ export class MCSManagerClient {
       instance_name: "",
       status: "",
     });
-    const instances = normalizeGlobalInstances(payload, nodes);
+    const instances = normalizeGlobalInstances(payload, nodes, (node) => this.getPublicHost(node));
     this.debug("global instances normalized", {
       payload: describePayload(payload),
       count: instances.length,
@@ -218,6 +221,41 @@ export class MCSManagerClient {
 
   private normalizedMinecraftKeywords() {
     return this.minecraft.typeKeywords.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
+  }
+
+  private getPublicHost(node: NodeStatus) {
+    const nodeHost = getHostFromAddress(node.address);
+    if (nodeHost && !isLocalHost(nodeHost)) return nodeHost;
+
+    const endpointHost = getHostFromAddress(this.config.endpoint);
+    if (endpointHost && !isLocalHost(endpointHost)) return endpointHost;
+  }
+
+  private async enrichMinecraftInstances(instances: MinecraftInstance[]) {
+    const timeout = Math.min(this.config.timeout, 3000);
+    return mapConcurrent(instances, 6, async (instance) => {
+      if (!instance.address || instance.status !== "running") return instance;
+
+      try {
+        const status = await queryMinecraftStatus(instance.address, timeout);
+        return {
+          ...instance,
+          onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
+          maxPlayers: status.maxPlayers ?? instance.maxPlayers,
+          version: status.version ?? instance.version,
+          motd: status.motd ?? instance.motd,
+          iconUrl: status.iconUrl ?? instance.iconUrl,
+        };
+      } catch (error) {
+        this.debug("minecraft status query failed", {
+          id: instance.id,
+          name: instance.name,
+          address: instance.address,
+          message: formatErrorMessage(error),
+        });
+        return instance;
+      }
+    });
   }
 
   private readCache<T>(entry?: CacheEntry<T>) {
@@ -347,7 +385,7 @@ function normalizeNodes(remoteServicesPayload: unknown, remoteSystemsPayload: un
   });
 }
 
-function normalizeInstancePage(payload: unknown, node: NodeStatus) {
+function normalizeInstancePage(payload: unknown, node: NodeStatus, publicHost?: string) {
   const record = toRecord(payload);
   const data = toArray(record?.data ?? payload);
   const total = record ? readNumber(record, "total") : undefined;
@@ -359,12 +397,12 @@ function normalizeInstancePage(payload: unknown, node: NodeStatus) {
     instances: data
       .map(toRecord)
       .filter(isRecord)
-      .map((item) => normalizeInstance(item, node))
+      .map((item) => normalizeInstance(item, node, publicHost))
       .filter((instance): instance is MinecraftInstance => Boolean(instance)),
   };
 }
 
-function normalizeInstance(item: Record<string, unknown>, node: NodeStatus): MinecraftInstance | undefined {
+function normalizeInstance(item: Record<string, unknown>, node: NodeStatus, publicHost?: string): MinecraftInstance | undefined {
   const id = readString(item, "instanceUuid") ?? readString(item, "uuid") ?? readString(item, "id");
   if (!id) return;
 
@@ -379,7 +417,8 @@ function normalizeInstance(item: Record<string, unknown>, node: NodeStatus): Min
     tags: readStringArray(config, "tag") ?? readStringArray(item, "tag") ?? readStringArray(item, "tags") ?? [],
     nodeId: node.id,
     nodeName: node.name,
-    address: readString(config, "address") ?? readString(item, "address") ?? readString(item, "serverAddress"),
+    address: readPingAddress(config, info, publicHost) ?? readServerAddress(config) ?? readServerAddress(info) ?? readServerAddress(item),
+    iconUrl: readImageSource(config) ?? readImageSource(info) ?? readImageSource(item),
     onlinePlayers: readNumber(info, "currentPlayers") ?? readNumber(item, "onlinePlayers") ?? readNumber(item, "currentPlayers"),
     maxPlayers: readNumber(info, "maxPlayers") ?? readNumber(item, "maxPlayers"),
     version: readString(info, "version") ?? readString(item, "version"),
@@ -388,7 +427,11 @@ function normalizeInstance(item: Record<string, unknown>, node: NodeStatus): Min
   };
 }
 
-function normalizeGlobalInstances(payload: unknown, nodes: NodeStatus[]) {
+function normalizeGlobalInstances(
+  payload: unknown,
+  nodes: NodeStatus[],
+  publicHost: (node: NodeStatus) => string | undefined,
+) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const record = toRecord(payload);
   if (!record) return [];
@@ -403,7 +446,7 @@ function normalizeGlobalInstances(payload: unknown, nodes: NodeStatus[]) {
     return instances
       .map(toRecord)
       .filter(isRecord)
-      .map((item) => normalizeInstance(item, node))
+      .map((item) => normalizeInstance(item, node, publicHost(node)))
       .filter((instance): instance is MinecraftInstance => Boolean(instance));
   });
 }
@@ -430,6 +473,103 @@ function formatAddress(host?: string, port?: number) {
   if (!host) return;
   if (!port) return host;
   return `${host}:${port}`;
+}
+
+function readServerAddress(record: Record<string, unknown> | undefined) {
+  return readString(record, "address") ??
+    readString(record, "serverAddress") ??
+    readString(record, "connectAddress") ??
+    readString(record, "ipAddress") ??
+    formatAddress(
+      readString(record, "host") ?? readString(record, "hostname") ?? readString(record, "ip"),
+      readNumber(record, "port") ?? readNumber(record, "serverPort") ?? readNumber(record, "mcPort"),
+    );
+}
+
+function readPingAddress(
+  config: Record<string, unknown> | undefined,
+  info: Record<string, unknown> | undefined,
+  publicHost?: string,
+) {
+  const pingConfig = toRecord(config?.pingConfig);
+  if (!pingConfig) return;
+
+  const pingHost = readString(pingConfig, "ip");
+  const pingPort = readNumber(pingConfig, "port");
+  if (pingHost) return formatAddress(pingHost, pingPort);
+  if (!publicHost) return;
+
+  const publishedPort = findPublishedPort(config, info, pingPort);
+  return formatAddress(publicHost, publishedPort ?? pingPort);
+}
+
+function findPublishedPort(
+  config: Record<string, unknown> | undefined,
+  info: Record<string, unknown> | undefined,
+  targetPort?: number,
+) {
+  const fromAllocated = toArray(info?.allocatedPorts)
+    .map(toRecord)
+    .filter(isRecord)
+    .find((entry) => {
+      const protocol = readString(entry, "protocol")?.toLowerCase();
+      const container = readNumber(entry, "container") ?? readNumber(entry, "PrivatePort");
+      return protocol !== "udp" && (targetPort === undefined || container === targetPort);
+    });
+  const allocatedHost = readString(fromAllocated, "host");
+  const allocatedPort = Number(allocatedHost ?? readNumber(fromAllocated, "PublicPort"));
+  if (Number.isFinite(allocatedPort) && allocatedPort > 0) return allocatedPort;
+
+  const docker = toRecord(config?.docker);
+  const fromDocker = readStringArray(docker, "ports")
+    ?.map(parseDockerPortMapping)
+    .find((entry) => entry && entry.protocol !== "udp" && (targetPort === undefined || entry.containerPort === targetPort));
+  return fromDocker?.hostPort;
+}
+
+function parseDockerPortMapping(value: string) {
+  const match = value.match(/^(?:(?:[^:]+):)?(\d+):(\d+)(?:\/(\w+))?$/);
+  if (!match) return;
+  return {
+    hostPort: Number(match[1]),
+    containerPort: Number(match[2]),
+    protocol: (match[3] ?? "tcp").toLowerCase(),
+  };
+}
+
+function getHostFromAddress(value?: string) {
+  if (!value) return;
+  try {
+    return new URL(value.includes("://") ? value : `http://${value}`).hostname;
+  } catch {
+    const bracketed = value.match(/^\[([^\]]+)]/);
+    if (bracketed) return bracketed[1];
+    return value.split(":")[0];
+  }
+}
+
+function isLocalHost(host: string) {
+  const normalized = host.toLowerCase();
+  return normalized === "localhost" ||
+    normalized === "0.0.0.0" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("127.");
+}
+
+function readImageSource(record: Record<string, unknown> | undefined) {
+  const value = readString(record, "iconUrl") ??
+    readString(record, "serverIcon") ??
+    readString(record, "favicon") ??
+    readString(record, "faviconUrl") ??
+    readString(record, "icon") ??
+    readString(record, "image") ??
+    readString(record, "avatar");
+  if (!value) return;
+  if (/^(data:image\/|https?:\/\/|\/)/.test(value)) return value;
+  if (/^[A-Za-z0-9+/=]+$/.test(value) && value.length > 100) {
+    return `data:image/png;base64,${value}`;
+  }
 }
 
 function toArray(value: unknown): unknown[] {
@@ -459,8 +599,29 @@ function readBoolean(record: Record<string, unknown> | undefined, key: string) {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function readStringArray(record: Record<string, unknown>, key: string) {
-  const value = record[key];
+function readStringArray(record: Record<string, unknown> | undefined, key: string) {
+  const value = record?.[key];
   if (!Array.isArray(value)) return;
   return value.filter((item): item is string => typeof item === "string");
+}
+
+async function mapConcurrent<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await mapper(items[current]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, worker),
+  );
+  return results;
 }

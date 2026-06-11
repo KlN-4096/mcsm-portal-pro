@@ -3,9 +3,12 @@
 import type { MinecraftInstance } from "../../types";
 import type { CSSProperties, ReactNode } from "react";
 
+export const COPYRIGHT_TEXT = "Powered by Koishi - Made by KrLite";
+
 export function ImageShell(props: {
   className: string;
   width: number;
+  brand: string;
   title: string;
   subtitle: string;
   generatedAt: string;
@@ -19,11 +22,14 @@ export function ImageShell(props: {
     >
       <header className="mcsm-image-header">
         <div>
-          <p>MCSM Portal</p>
+          <p>{props.brand}</p>
           <h3>{props.title}</h3>
           <span>{props.subtitle}</span>
         </div>
-        <time>{formatDate(props.generatedAt)}</time>
+        <div className="mcsm-image-meta">
+          <time>{formatDate(props.generatedAt)}</time>
+          <small className="mcsm-image-copyright">{COPYRIGHT_TEXT}</small>
+        </div>
       </header>
       {props.children}
     </article>
@@ -85,11 +91,11 @@ export function serverLatencyLabel(server: MinecraftInstance) {
   return "Unknown";
 }
 
+export function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
+
 function formatBytes(value: number) {
   const gib = value / 1024 ** 3;
   return `${gib.toFixed(gib >= 10 ? 0 : 1)} GiB`;
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
 }

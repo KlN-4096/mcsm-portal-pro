@@ -28,6 +28,7 @@ export interface MinecraftInstance {
   nodeId?: string;
   nodeName?: string;
   address?: string;
+  iconUrl?: string;
   onlinePlayers?: number;
   maxPlayers?: number;
   version?: string;

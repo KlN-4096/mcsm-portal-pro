@@ -2,7 +2,9 @@ import type { MinecraftInstance, NodeStatus } from "../../types";
 import type { CodeAuthoredLayoutDefinition } from "../../visualization";
 
 export interface VisualizationLayoutData {
-  panelName: string;
+  portalName: string;
+  nodeTitle: string;
+  serverTitle: string;
   generatedAt: string;
   backgroundTexture?: string;
   backgroundTile?: string;

@@ -1,5 +1,13 @@
 import type { MinecraftInstance, NodeStatus } from "./types";
-import type { Config } from "./config";
+import {
+  DEFAULT_NODE_IMAGE_TITLE,
+  DEFAULT_SERVER_IMAGE_TITLE,
+  PORTAL_IMAGE_BRAND,
+  resolveNodeImageTitle,
+  resolveServerImageTitle,
+  type Config,
+} from "./config";
+import type { MCSManagerClient } from "./client";
 import { resolveBackgroundTextureDataUri } from "./visualization/styles";
 
 export type VisualizationSurface = "node-status" | "server-list";
@@ -16,7 +24,9 @@ export interface CodeAuthoredLayoutDefinition {
 }
 
 export interface VisualizationMockData {
-  panelName: string;
+  portalName: string;
+  nodeTitle: string;
+  serverTitle: string;
   generatedAt: string;
   backgroundTexture?: string;
   backgroundTile?: string;
@@ -26,6 +36,7 @@ export interface VisualizationMockData {
 
 export interface PreviewEntryData {
   version: 1;
+  realDataAvailable: boolean;
   layouts: CodeAuthoredLayoutDefinition[];
   mock: VisualizationMockData;
 }
@@ -53,20 +64,29 @@ export const codeAuthoredLayouts: CodeAuthoredLayoutDefinition[] = [
   },
 ];
 
-export function createPreviewEntryData(config?: Config): PreviewEntryData {
+export function createPreviewEntryData(config?: Config, realDataAvailable = false): PreviewEntryData {
   return {
     version: 1,
-    layouts: codeAuthoredLayouts,
+    realDataAvailable,
+    layouts: codeAuthoredLayouts.map((layout) => withImageWidth(layout, config?.image.width)),
     mock: createMockPreviewData(config),
+  };
+}
+
+export async function createRealPreviewData(config: Config, client: MCSManagerClient): Promise<VisualizationMockData> {
+  const nodes = await client.listNodes();
+  const servers = await client.listMinecraftInstances();
+
+  return {
+    ...createVisualizationDataBase(config),
+    nodes,
+    servers,
   };
 }
 
 export function createMockPreviewData(config?: Config): VisualizationMockData {
   return {
-    panelName: config?.image.title ?? "MCSM Portal",
-    generatedAt: new Date().toISOString(),
-    backgroundTexture: config?.image.backgroundTexture || undefined,
-    backgroundTile: resolveBackgroundTextureDataUri(config?.image.backgroundTexture),
+    ...createVisualizationDataBase(config),
     nodes: [
       {
         id: "node-shanghai-01",
@@ -145,5 +165,23 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         modList: ["Create", "Botania", "Twilight Forest"],
       },
     ],
+  };
+}
+
+function createVisualizationDataBase(config?: Config) {
+  return {
+    portalName: PORTAL_IMAGE_BRAND,
+    nodeTitle: config ? resolveNodeImageTitle(config) : DEFAULT_NODE_IMAGE_TITLE,
+    serverTitle: config ? resolveServerImageTitle(config) : DEFAULT_SERVER_IMAGE_TITLE,
+    generatedAt: new Date().toISOString(),
+    backgroundTexture: config?.image.backgroundTexture || undefined,
+    backgroundTile: resolveBackgroundTextureDataUri(config?.image.backgroundTexture),
+  };
+}
+
+export function withImageWidth(layout: CodeAuthoredLayoutDefinition, width = 854): CodeAuthoredLayoutDefinition {
+  return {
+    ...layout,
+    previewWidth: Math.min(1600, Math.max(640, width)),
   };
 }

@@ -15,7 +15,10 @@ export interface CommandConfig {
 }
 
 export interface ImageConfig {
-  title: string;
+  title?: string;
+  nodeTitle: string;
+  serverTitle: string;
+  width: number;
   backgroundTexture: string;
   accentColor: string;
   showGeneratedAt: boolean;
@@ -52,6 +55,10 @@ export interface Config {
   cacheTtl: number;
   debug: boolean;
 }
+
+export const PORTAL_IMAGE_BRAND = "MCSM Portal";
+export const DEFAULT_NODE_IMAGE_TITLE = "Daemon Node Status";
+export const DEFAULT_SERVER_IMAGE_TITLE = "Play Multiplayer";
 
 export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
@@ -93,9 +100,17 @@ export const Config: Schema<Config> = Schema.intersect([
   }),
   Schema.object({
     image: Schema.object({
-      title: Schema.string()
-        .description("Title displayed in generated portal images.")
-        .default("MCSM Portal"),
+      nodeTitle: Schema.string()
+        .description("Title displayed below MCSM Portal in node status images.")
+        .default(DEFAULT_NODE_IMAGE_TITLE),
+      serverTitle: Schema.string()
+        .description("Title displayed below MCSM Portal in server list images.")
+        .default(DEFAULT_SERVER_IMAGE_TITLE),
+      width: Schema.number()
+        .description("Generated image width in pixels.")
+        .min(640)
+        .max(1600)
+        .default(854),
       backgroundTexture: createBackgroundTextureSchema(),
       accentColor: Schema.string()
         .description("CSS color used as the image accent color.")
@@ -164,6 +179,32 @@ export const Config: Schema<Config> = Schema.intersect([
     }).description("Server list fields"),
   }),
 ]);
+
+export function resolveNodeImageTitle(config: Config) {
+  return resolveSurfaceImageTitle(
+    config.image.nodeTitle,
+    DEFAULT_NODE_IMAGE_TITLE,
+    config.image.title,
+  );
+}
+
+export function resolveServerImageTitle(config: Config) {
+  return resolveSurfaceImageTitle(
+    config.image.serverTitle,
+    DEFAULT_SERVER_IMAGE_TITLE,
+    config.image.title,
+  );
+}
+
+function resolveSurfaceImageTitle(title: string | undefined, defaultTitle: string, legacyTitle?: string) {
+  const normalized = title?.trim();
+  if (normalized && normalized !== defaultTitle) return normalized;
+
+  const legacy = legacyTitle?.trim();
+  if (legacy && legacy !== PORTAL_IMAGE_BRAND) return legacy;
+
+  return normalized || defaultTitle;
+}
 
 function createBackgroundTextureSchema() {
   const names = listBackgroundTextureNames();

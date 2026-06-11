@@ -4,12 +4,14 @@ import {
   computed,
   defineComponent,
   h,
+  nextTick,
   onBeforeUnmount,
+  onMounted,
   ref,
   resolveComponent,
   watchEffect,
 } from "vue";
-import { defineExtension, useRpc } from "@koishijs/client";
+import { defineExtension, send, useRpc } from "@koishijs/client";
 import {
   NodeStatusLayout,
   ServerListLayout,
@@ -63,6 +65,7 @@ interface MinecraftInstance {
   nodeId?: string;
   nodeName?: string;
   address?: string;
+  iconUrl?: string;
   onlinePlayers?: number;
   maxPlayers?: number;
   version?: string;
@@ -71,7 +74,9 @@ interface MinecraftInstance {
 }
 
 interface VisualizationMockData {
-  panelName: string;
+  portalName: string;
+  nodeTitle: string;
+  serverTitle: string;
   generatedAt: string;
   backgroundTexture?: string;
   backgroundTile?: string;
@@ -81,8 +86,15 @@ interface VisualizationMockData {
 
 interface PreviewEntryData {
   version: 1;
+  realDataAvailable: boolean;
   layouts: CodeAuthoredLayoutDefinition[];
   mock: VisualizationMockData;
+}
+
+interface RealPreviewResponse {
+  ok: boolean;
+  data?: VisualizationMockData;
+  error?: string;
 }
 
 const PreviewPage = defineComponent({
@@ -90,9 +102,25 @@ const PreviewPage = defineComponent({
   setup() {
     const rpc = useRpc<PreviewEntryData>();
     const selectedLayoutId = ref("");
+    const dataSource = ref<"mock" | "real">("mock");
+    const realData = ref<VisualizationMockData>();
+    const realLoading = ref(false);
+    const realError = ref("");
+    const workbench = ref<HTMLElement>();
+    const isStacked = ref(false);
+    let resizeObserver: ResizeObserver | undefined;
+    let observedWorkbench: HTMLElement | undefined;
 
     const layouts = computed(() => rpc.value?.layouts ?? []);
     const mock = computed(() => rpc.value?.mock);
+    const activeData = computed(() =>
+      dataSource.value === "real" && realData.value
+        ? realData.value
+        : mock.value,
+    );
+    const activeSourceLabel = computed(() =>
+      dataSource.value === "real" && realData.value ? "real" : "mock",
+    );
     const selectedLayout = computed(
       () =>
         layouts.value.find((layout) => layout.id === selectedLayoutId.value) ??
@@ -101,6 +129,77 @@ const PreviewPage = defineComponent({
 
     const KLayout = resolveComponent("k-layout");
     const ElScrollbar = resolveComponent("el-scrollbar");
+
+    async function selectDataSource(source: "mock" | "real") {
+      if (source === "mock") {
+        dataSource.value = "mock";
+        realError.value = "";
+        return;
+      }
+
+      if (!realData.value && !(await loadRealData())) return;
+      dataSource.value = "real";
+    }
+
+    async function refreshRealData() {
+      if (await loadRealData()) dataSource.value = "real";
+    }
+
+    async function loadRealData() {
+      if (!rpc.value?.realDataAvailable) {
+        realError.value = "Real data is unavailable because the MCSManager connection is not configured.";
+        return false;
+      }
+
+      realLoading.value = true;
+      realError.value = "";
+      try {
+        const response = await send("mcsm-portal/preview-data") as RealPreviewResponse;
+        if (!response.ok || !response.data) {
+          realError.value = response.error ?? "Failed to load real preview data.";
+          return false;
+        }
+        realData.value = response.data;
+        return true;
+      } catch (error) {
+        realError.value = error instanceof Error ? error.message : String(error);
+        return false;
+      } finally {
+        realLoading.value = false;
+      }
+    }
+
+    function updateLayoutMode() {
+      if (!workbench.value || !selectedLayout.value) return;
+      const sidebarWidth = 320;
+      const gap = 16;
+      const previewChrome = 54;
+      const threshold = sidebarWidth + gap + selectedLayout.value.previewWidth + previewChrome;
+      isStacked.value = workbench.value.clientWidth < threshold;
+    }
+
+    onMounted(() => {
+      resizeObserver = new ResizeObserver(updateLayoutMode);
+      if (workbench.value) resizeObserver.observe(workbench.value);
+      observedWorkbench = workbench.value;
+      updateLayoutMode();
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
+    });
+
+    watchEffect(() => {
+      selectedLayout.value?.previewWidth;
+      nextTick(() => {
+        if (resizeObserver && workbench.value && workbench.value !== observedWorkbench) {
+          if (observedWorkbench) resizeObserver.unobserve(observedWorkbench);
+          resizeObserver.observe(workbench.value);
+          observedWorkbench = workbench.value;
+        }
+        updateLayoutMode();
+      });
+    });
 
     return () =>
       h(
@@ -112,8 +211,14 @@ const PreviewPage = defineComponent({
             h(ElScrollbar, null, {
               default: () =>
                 h("main", { class: "mcsm-portal-preview-page__content" }, [
-                  selectedLayout.value && mock.value
-                    ? h("section", { class: "mcsm-portal-preview-workbench" }, [
+                  selectedLayout.value && activeData.value
+                    ? h("section", {
+                        ref: workbench,
+                        class: [
+                          "mcsm-portal-preview-workbench",
+                          isStacked.value ? "is-stacked" : "",
+                        ],
+                      }, [
                         h(
                           "aside",
                           {
@@ -146,6 +251,44 @@ const PreviewPage = defineComponent({
                               ),
                             ),
                             h("hr"),
+                            h("h2", "Data Source"),
+                            h("div", { class: "mcsm-portal-source-toggle" }, [
+                              h("div", { class: "mcsm-portal-source-toggle__buttons" }, [
+                                h("button", {
+                                  type: "button",
+                                  class: {
+                                    "is-active": activeSourceLabel.value === "mock",
+                                  },
+                                  onClick: () => selectDataSource("mock"),
+                                }, "Mock"),
+                                h("button", {
+                                  type: "button",
+                                  disabled:
+                                    realLoading.value ||
+                                    !rpc.value?.realDataAvailable,
+                                  class: {
+                                    "is-active": activeSourceLabel.value === "real",
+                                  },
+                                  onClick: () => selectDataSource("real"),
+                                }, realLoading.value ? "Loading..." : "Real"),
+                              ]),
+                              activeSourceLabel.value === "real"
+                                ? h("button", {
+                                    type: "button",
+                                    class: "mcsm-portal-source-toggle__refresh",
+                                    disabled: realLoading.value,
+                                    onClick: refreshRealData,
+                                  }, realLoading.value ? "Refreshing..." : "Refresh real data")
+                                : null,
+                              realError.value
+                                ? h("p", { class: "mcsm-portal-source-toggle__error" }, realError.value)
+                                : h("p", { class: "mcsm-portal-source-toggle__hint" },
+                                    rpc.value?.realDataAvailable
+                                      ? "Switch between generated mock content and live MCSManager data."
+                                      : "Switch between generated mock content and live MCSManager data. Configure MCSManager endpoint and API key to enable Real.",
+                                  ),
+                            ]),
+                            h("hr"),
                             h("h2", "Component"),
                             h("dl", { class: "mcsm-portal-code-meta" }, [
                               h("dt", "Renderer"),
@@ -159,30 +302,35 @@ const PreviewPage = defineComponent({
                             h("hr"),
                             h("h2", "Background"),
                             h("div", { class: "mcsm-portal-texture-preview" }, [
-                              mock.value.backgroundTile
+                              activeData.value.backgroundTile
                                 ? h("img", {
-                                    src: mock.value.backgroundTile,
+                                    src: activeData.value.backgroundTile,
                                     alt:
-                                      mock.value.backgroundTexture ??
+                                      activeData.value.backgroundTexture ??
                                       "Selected background texture",
                                   })
                                 : h("div", {
                                     class: "mcsm-portal-texture-preview__empty",
                                   }),
-                              h("span", mock.value.backgroundTexture || "None"),
+                              h("span", activeData.value.backgroundTexture || "None"),
                             ]),
                           ],
                         ),
-                        h("section", { class: "mcsm-portal-preview-column" }, [
+                        h("section", {
+                          class: "mcsm-portal-preview-column",
+                          style: {
+                            "--mcsm-preview-width": `${selectedLayout.value.previewWidth}px`,
+                          },
+                        }, [
                           h("div", { class: "mcsm-portal-panel" }, [
                             h("div", { class: "mcsm-portal-panel__heading" }, [
                               h("h2", selectedLayout.value.name),
-                              h("span", "mock"),
+                              h("span", capitalize(activeSourceLabel.value)),
                             ]),
                             h("div", { class: "mcsm-portal-stage" }, [
                               renderComponentPreview(
                                 selectedLayout.value,
-                                mock.value,
+                                activeData.value,
                               ),
                             ]),
                           ]),
@@ -195,18 +343,20 @@ const PreviewPage = defineComponent({
                             [
                               h("h2", "Data"),
                               h("div", { class: "mcsm-portal-summary-grid" }, [
-                                summaryItem("Panel", mock.value.panelName),
+                                summaryItem("Brand", activeData.value.portalName),
+                                summaryItem("Node title", activeData.value.nodeTitle),
+                                summaryItem("Server title", activeData.value.serverTitle),
                                 summaryItem(
                                   "Generated",
-                                  formatDate(mock.value.generatedAt),
+                                  formatDate(activeData.value.generatedAt),
                                 ),
                                 summaryItem(
                                   "Nodes",
-                                  String(mock.value.nodes.length),
+                                  String(activeData.value.nodes.length),
                                 ),
                                 summaryItem(
                                   "Servers",
-                                  String(mock.value.servers.length),
+                                  String(activeData.value.servers.length),
                                 ),
                               ]),
                             ],
@@ -232,8 +382,30 @@ const ReactLayoutHost = defineComponent<{
   name: "McsmPortalReactLayoutHost",
   props: ["layout", "data"],
   setup(props) {
+    const frame = ref<HTMLElement>();
     const host = ref<HTMLElement>();
+    const scale = ref(1);
+    const naturalHeight = ref<number>();
     let root: Root | undefined;
+    let resizeObserver: ResizeObserver | undefined;
+
+    function updateScale() {
+      const frameElement = frame.value;
+      const hostElement = host.value;
+      if (!frameElement || !hostElement) return;
+
+      const parent = frameElement.parentElement;
+      const parentStyle = parent ? getComputedStyle(parent) : undefined;
+      const horizontalPadding = parentStyle
+        ? parseFloat(parentStyle.paddingLeft) + parseFloat(parentStyle.paddingRight)
+        : 0;
+      const availableWidth = parent
+        ? parent.clientWidth - horizontalPadding
+        : props.layout.previewWidth;
+      const nextScale = Math.min(1, availableWidth / props.layout.previewWidth);
+      scale.value = Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1;
+      naturalHeight.value = hostElement.scrollHeight;
+    }
 
     watchEffect(() => {
       if (!host.value) return;
@@ -248,14 +420,38 @@ const ReactLayoutHost = defineComponent<{
           data: props.data,
         }),
       );
+      nextTick(updateScale);
+      requestAnimationFrame(updateScale);
+    });
+
+    onMounted(() => {
+      resizeObserver = new ResizeObserver(updateScale);
+      if (frame.value) resizeObserver.observe(frame.value);
+      if (frame.value?.parentElement) resizeObserver.observe(frame.value.parentElement);
+      if (host.value) resizeObserver.observe(host.value);
+      updateScale();
     });
 
     onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
       root?.unmount();
       root = undefined;
     });
 
-    return () => h("div", { ref: host, class: "mcsm-react-host" });
+    return () => h("div", {
+      ref: frame,
+      class: "mcsm-react-frame",
+      style: {
+        width: `${props.layout.previewWidth * scale.value}px`,
+        height: naturalHeight.value ? `${naturalHeight.value * scale.value}px` : undefined,
+        "--mcsm-preview-scale": String(scale.value),
+      },
+    }, [
+      h("div", {
+        ref: host,
+        class: "mcsm-react-host",
+      }),
+    ]);
   },
 });
 
@@ -282,4 +478,8 @@ function summaryItem(label: string, value: string) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function capitalize(value: string) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
 }

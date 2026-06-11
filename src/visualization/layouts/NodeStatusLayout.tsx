@@ -4,12 +4,15 @@ import { bytesPair, ImageShell, Meter, percent, Stat } from "./components";
 import type { VisualizationLayoutProps } from "./types";
 
 export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
+  const online = data.nodes.filter((node) => node.online).length;
+
   return (
     <ImageShell
       className="mcsm-image--nodes"
       width={layout.previewWidth}
-      title={data.panelName}
-      subtitle="Daemon node status"
+      title={data.nodeTitle}
+      subtitle={`${online}/${data.nodes.length} nodes online`}
+      brand={data.portalName}
       generatedAt={data.generatedAt}
       backgroundTile={data.backgroundTile}
     >

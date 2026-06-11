@@ -1,6 +1,6 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
-import type { Config } from "./config";
+import { resolveNodeImageTitle, type Config } from "./config";
 import { renderNodeStatus, renderServerList, type RenderText } from "./render";
 import { resolveServerAddress } from "./servers";
 
@@ -102,7 +102,7 @@ function refreshCache(session: Session, scope: string, client: MCSManagerClient)
 
 function createRenderText(session: Session, scope: string, config: Config): RenderText {
   return {
-    noNodes: text(session, scope, "render.no-nodes", { title: config.image.title }),
+    noNodes: text(session, scope, "render.no-nodes", { title: resolveNodeImageTitle(config) }),
     noServers: text(session, scope, "render.no-servers"),
     nodeSummary: (online, total) => text(session, scope, "render.node-summary", { online, total }),
     serverSummary: (total) => text(session, scope, "render.server-summary", { total }),

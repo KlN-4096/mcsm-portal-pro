@@ -24,7 +24,7 @@ export * from "./visualization/styles";
 export function apply(ctx: Context, config: Config) {
   const commandName = config.command.name.trim() || "mcsm";
   defineLocales(ctx, commandName);
-  registerPreviewEntry(ctx, config);
   const client = new MCSManagerClient(ctx, config.connection, config.minecraft, config.cacheTtl, config.debug);
+  registerPreviewEntry(ctx, config, client);
   registerCommands(ctx, config, client);
 }

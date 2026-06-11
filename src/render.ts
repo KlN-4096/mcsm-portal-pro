@@ -1,5 +1,9 @@
 import { h } from "koishi";
-import type { Config } from "./config";
+import {
+  resolveNodeImageTitle,
+  resolveServerImageTitle,
+  type Config,
+} from "./config";
 import type { MinecraftInstance, NodeStatus, ServerFieldVisibility } from "./types";
 import {
   renderNodeStatusVisualization,
@@ -55,7 +59,7 @@ export function renderNodeStatusText(config: Config, nodes: NodeStatus[], text: 
   const output: string[] = [];
 
   if (config.output.text.showHeader) {
-    output.push(`${config.image.title}\n${text.nodeSummary(onlineCount, nodes.length)}`);
+    output.push(`${resolveNodeImageTitle(config)}\n${text.nodeSummary(onlineCount, nodes.length)}`);
   }
 
   output.push(...nodes.map((node) => renderNode(node, config, text)));
@@ -70,7 +74,7 @@ export function renderServerListText(config: Config, servers: MinecraftInstance[
   const output: string[] = [];
 
   if (config.output.text.showHeader) {
-    output.push(`${config.image.title}\n${text.serverSummary(servers.length)}`);
+    output.push(`${resolveServerImageTitle(config)}\n${text.serverSummary(servers.length)}`);
   }
 
   output.push(...servers.map((server) => renderServer(server, fields, config, text)));

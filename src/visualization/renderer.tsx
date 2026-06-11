@@ -2,9 +2,14 @@
 
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Config } from "../config";
+import {
+  PORTAL_IMAGE_BRAND,
+  resolveNodeImageTitle,
+  resolveServerImageTitle,
+  type Config,
+} from "../config";
 import type { MinecraftInstance, NodeStatus } from "../types";
-import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition } from "../visualization";
+import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition, withImageWidth } from "../visualization";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
 import { createVisualizationCss } from "./styles";
 import { resolveBackgroundTextureDataUri } from "./styles";
@@ -18,12 +23,12 @@ export interface VisualizationRenderResult {
 }
 
 export function renderNodeStatusVisualization(config: Config, nodes: NodeStatus[]) {
-  const layout = getLayout("node-status");
+  const layout = getLayout("node-status", config.image.width);
   return renderVisualization(layout, createVisualizationData(config, nodes, []));
 }
 
 export function renderServerListVisualization(config: Config, servers: MinecraftInstance[]) {
-  const layout = getLayout("server-list");
+  const layout = getLayout("server-list", config.image.width);
   return renderVisualization(layout, createVisualizationData(config, [], servers));
 }
 
@@ -45,7 +50,9 @@ export function createVisualizationData(
   servers: MinecraftInstance[],
 ): VisualizationLayoutData {
   return {
-    panelName: config.image.title,
+    portalName: PORTAL_IMAGE_BRAND,
+    nodeTitle: resolveNodeImageTitle(config),
+    serverTitle: resolveServerImageTitle(config),
     generatedAt: new Date().toISOString(),
     backgroundTexture: config.image.backgroundTexture || undefined,
     backgroundTile: resolveBackgroundTextureDataUri(config.image.backgroundTexture),
@@ -69,15 +76,15 @@ function renderVisualization(
   };
 }
 
-function getLayout(surface: CodeAuthoredLayoutDefinition["surface"]) {
+function getLayout(surface: CodeAuthoredLayoutDefinition["surface"], width?: number) {
   const layout = codeAuthoredLayouts.find((item) => item.surface === surface);
   if (!layout) throw new Error(`Missing visualization layout for ${surface}.`);
-  return layout;
+  return withImageWidth(layout, width);
 }
 
 function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: VisualizationLayoutData) {
   if (layout.surface === "node-status") {
-    return 120 + Math.max(data.nodes.length, 1) * 190;
+    return 145 + Math.max(data.nodes.length, 1) * 190;
   }
-  return 170 + Math.max(data.servers.length, 1) * 86;
+  return 180 + Math.max(data.servers.length, 1) * 86;
 }
