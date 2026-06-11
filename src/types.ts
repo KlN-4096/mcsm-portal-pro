@@ -33,7 +33,18 @@ export interface MinecraftInstance {
   maxPlayers?: number;
   version?: string;
   motd?: string;
+  motdSegments?: MinecraftTextSegment[];
   modList: string[];
+}
+
+export interface MinecraftTextSegment {
+  text: string;
+  color?: string;
+  gradient?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underlined?: boolean;
+  strikethrough?: boolean;
 }
 
 export interface ServerAddress {

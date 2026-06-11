@@ -84,7 +84,9 @@ function getLayout(surface: CodeAuthoredLayoutDefinition["surface"], width?: num
 
 function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: VisualizationLayoutData) {
   if (layout.surface === "node-status") {
+    if (!data.nodes.length) return 390;
     return 145 + Math.max(data.nodes.length, 1) * 190;
   }
-  return 180 + Math.max(data.servers.length, 1) * 86;
+  if (!data.servers.length) return 430;
+  return 170 + data.servers.length * 98;
 }

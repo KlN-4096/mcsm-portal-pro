@@ -244,6 +244,7 @@ export class MCSManagerClient {
           maxPlayers: status.maxPlayers ?? instance.maxPlayers,
           version: status.version ?? instance.version,
           motd: status.motd ?? instance.motd,
+          motdSegments: status.motdSegments ?? instance.motdSegments,
           iconUrl: status.iconUrl ?? instance.iconUrl,
         };
       } catch (error) {

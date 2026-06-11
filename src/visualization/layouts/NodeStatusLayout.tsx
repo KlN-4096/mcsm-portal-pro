@@ -17,7 +17,7 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
       backgroundTile={data.backgroundTile}
     >
       <section className="mcsm-node-grid">
-        {data.nodes.map((node) => (
+        {data.nodes.length ? data.nodes.map((node) => (
           <div
             key={node.id}
             className={`mcsm-node-card ${node.online ? "is-online" : "is-offline"}`}
@@ -50,7 +50,9 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
             </footer>
             {node.remark ? <p>{node.remark}</p> : null}
           </div>
-        ))}
+        )) : (
+          <div className="mcsm-empty-state">No nodes available</div>
+        )}
       </section>
     </ImageShell>
   );

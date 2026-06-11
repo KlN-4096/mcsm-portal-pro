@@ -1,5 +1,6 @@
 /** @jsxImportSource react */
 
+import type { CSSProperties } from "react";
 import {
   COPYRIGHT_TEXT,
   createImageStyle,
@@ -7,6 +8,7 @@ import {
   formatPlayers,
   serverLatencyLabel,
 } from "./components";
+import type { MinecraftInstance, MinecraftTextSegment } from "../../types";
 import type { VisualizationLayoutProps } from "./types";
 
 export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
@@ -28,7 +30,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
       </header>
 
       <section className="mcsm-minecraft-server-list">
-        {data.servers.map((server) => (
+        {data.servers.length ? data.servers.map((server) => (
           <article
             key={server.id}
             className={`mcsm-server-row is-${server.status}`}
@@ -44,9 +46,9 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
               <div className="mcsm-server-title-line">
                 <strong>{server.name}</strong>
               </div>
-              <p className="mcsm-server-motd">
-                {server.motd ?? server.address ?? "Minecraft Server"}
-              </p>
+              <div className="mcsm-server-motd">
+                {renderMotd(server)}
+              </div>
               <p className="mcsm-server-address">
                 {server.address ?? "No address configured"}
               </p>
@@ -74,8 +76,13 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
               </small>
             </aside>
           </article>
-        ))}
+        )) : (
+          <div className="mcsm-empty-state mcsm-empty-state--servers">
+            No servers available
+          </div>
+        )}
       </section>
+      <div className="mcsm-minecraft-footer-spacer" />
 
       <footer className="mcsm-minecraft-footer">
         <small className="mcsm-image-copyright">{COPYRIGHT_TEXT}</small>
@@ -85,4 +92,52 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
       </footer>
     </article>
   );
+}
+
+function renderMotd(server: MinecraftInstance) {
+  const lines = splitMotdLines(
+    server.motdSegments?.length
+      ? server.motdSegments
+      : [{ text: server.motd ?? server.address ?? "Minecraft Server" }],
+  );
+
+  return [0, 1].map((index) => (
+    <span key={index} className="mcsm-server-motd-line">
+      {lines[index]?.map((segment, segmentIndex) => (
+        <span key={segmentIndex} style={createMotdStyle(segment)}>
+          {segment.text}
+        </span>
+      ))}
+    </span>
+  ));
+}
+
+function splitMotdLines(segments: MinecraftTextSegment[]) {
+  const lines: MinecraftTextSegment[][] = [[]];
+
+  for (const segment of segments) {
+    const parts = segment.text.replace(/\r\n?/g, "\n").split("\n");
+    parts.forEach((part, index) => {
+      if (index > 0) lines.push([]);
+      if (part) lines[lines.length - 1].push({ ...segment, text: part });
+    });
+  }
+
+  return lines.slice(0, 2);
+}
+
+function createMotdStyle(segment: MinecraftTextSegment): CSSProperties {
+  return {
+    backgroundImage: segment.gradient,
+    backgroundClip: segment.gradient ? "text" : undefined,
+    WebkitBackgroundClip: segment.gradient ? "text" : undefined,
+    color: segment.color,
+    WebkitTextFillColor: segment.gradient ? "transparent" : undefined,
+    fontWeight: segment.bold ? 700 : undefined,
+    fontStyle: segment.italic ? "italic" : undefined,
+    textDecoration: [
+      segment.underlined ? "underline" : undefined,
+      segment.strikethrough ? "line-through" : undefined,
+    ].filter(Boolean).join(" ") || undefined,
+  };
 }

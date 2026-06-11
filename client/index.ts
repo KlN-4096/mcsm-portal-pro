@@ -16,6 +16,7 @@ import {
   NodeStatusLayout,
   ServerListLayout,
 } from "../src/visualization/layouts";
+import "../assets/visualization/layout.css";
 import "./style.css";
 
 type VisualizationSurface = "node-status" | "server-list";
@@ -70,7 +71,18 @@ interface MinecraftInstance {
   maxPlayers?: number;
   version?: string;
   motd?: string;
+  motdSegments?: MinecraftTextSegment[];
   modList: string[];
+}
+
+interface MinecraftTextSegment {
+  text: string;
+  color?: string;
+  gradient?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underlined?: boolean;
+  strikethrough?: boolean;
 }
 
 interface VisualizationMockData {
