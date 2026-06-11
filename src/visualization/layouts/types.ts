@@ -3,9 +3,11 @@ import type { CodeAuthoredLayoutDefinition } from "../../visualization";
 
 export interface VisualizationLayoutData {
   portalName: string;
+  copyright: string;
   nodeTitle: string;
   serverTitle: string;
-  generatedAt: string;
+  showGeneratedAt: boolean;
+  generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
   nodes: NodeStatus[];

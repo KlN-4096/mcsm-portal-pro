@@ -242,6 +242,7 @@ export class MCSManagerClient {
           ...instance,
           onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: status.maxPlayers ?? instance.maxPlayers,
+          latencyMs: status.latencyMs ?? instance.latencyMs,
           version: status.version ?? instance.version,
           motd: status.motd ?? instance.motd,
           motdSegments: status.motdSegments ?? instance.motdSegments,

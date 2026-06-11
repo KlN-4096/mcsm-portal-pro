@@ -1,8 +1,8 @@
 import { Context } from "koishi";
 import { MCSManagerClient } from "./client";
 import { registerCommands } from "./commands";
-import { Config as ConfigSchema } from "./config";
-import type { Config as PluginConfig } from "./config";
+import { Config as ConfigSchema, createRuntimeConfig } from "./config";
+import type { ConfigInput as PluginConfig } from "./config";
 import { defineLocales } from "./locales";
 import { registerPreviewEntry } from "./preview";
 
@@ -22,9 +22,16 @@ export * from "./visualization/renderer";
 export * from "./visualization/styles";
 
 export function apply(ctx: Context, config: Config) {
-  const commandName = config.command.name.trim() || "mcsm";
+  const runtimeConfig = createRuntimeConfig(config);
+  const commandName = runtimeConfig.command.name.trim() || "mcsm";
   defineLocales(ctx, commandName);
-  const client = new MCSManagerClient(ctx, config.connection, config.minecraft, config.cacheTtl, config.debug);
-  registerPreviewEntry(ctx, config, client);
-  registerCommands(ctx, config, client);
+  const client = new MCSManagerClient(
+    ctx,
+    runtimeConfig.connection,
+    runtimeConfig.minecraft,
+    runtimeConfig.cacheTtl,
+    runtimeConfig.debug,
+  );
+  registerPreviewEntry(ctx, runtimeConfig, client);
+  registerCommands(ctx, runtimeConfig, client);
 }

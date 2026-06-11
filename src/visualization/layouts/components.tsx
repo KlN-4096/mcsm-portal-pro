@@ -1,17 +1,17 @@
 /** @jsxImportSource react */
 
-import type { MinecraftInstance } from "../../types";
+import type { MinecraftInstance, MinecraftTextSegment } from "../../types";
 import type { CSSProperties, ReactNode } from "react";
-
-export const COPYRIGHT_TEXT = "Powered by Koishi - Made by KrLite";
+import { parseMinecraftText } from "../../minecraft-text";
 
 export function ImageShell(props: {
   className: string;
   width: number;
   brand: string;
+  copyright: string;
   title: string;
   subtitle: string;
-  generatedAt: string;
+  generatedAt?: string;
   backgroundTile?: string;
   children: ReactNode;
 }) {
@@ -23,18 +23,22 @@ export function ImageShell(props: {
       )}
       style={createImageStyle(props.width, props.backgroundTile)}
     >
-      <header className="mb-6 flex items-start justify-between gap-5">
+      <header className="mb-4 flex items-start justify-between gap-5">
         <div>
-          <p className="m-0 mb-2 font-minecraft-five text-sm">{props.brand}</p>
+          <p className="m-0 mb-2 font-minecraft-five text-sm">
+            <FormattedText text={props.brand} />
+          </p>
           <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
-            {props.title}
+            <FormattedText text={props.title} />
           </h3>
           <span className="opacity-75">{props.subtitle}</span>
         </div>
-        <div className="grid justify-items-end gap-1.5 text-right opacity-75">
-          <time>{formatDate(props.generatedAt)}</time>
+        <div className="grid justify-items-end gap-0.5 text-right opacity-75">
+          {props.generatedAt ? (
+            <time>{formatDate(props.generatedAt)}</time>
+          ) : null}
           <small className="font-minecraft text-xs opacity-75">
-            {COPYRIGHT_TEXT}
+            <FormattedText text={props.copyright} />
           </small>
         </div>
       </header>
@@ -50,6 +54,39 @@ export function createImageStyle(width: number, backgroundTile?: string) {
       ? { "--mcsm-background-tile": `url("${backgroundTile}")` }
       : {}),
   } as CSSProperties & Record<"--mcsm-background-tile", string>;
+}
+
+export function FormattedText(props: { text: string }) {
+  return <>{renderMinecraftTextSegments(parseMinecraftText(props.text))}</>;
+}
+
+export function renderMinecraftTextSegments(segments: MinecraftTextSegment[]) {
+  return segments.map((segment, index) => (
+    <span key={index} style={createMinecraftTextStyle(segment)}>
+      {segment.text}
+    </span>
+  ));
+}
+
+export function createMinecraftTextStyle(
+  segment: MinecraftTextSegment,
+): CSSProperties {
+  return {
+    backgroundImage: segment.gradient,
+    backgroundClip: segment.gradient ? "text" : undefined,
+    WebkitBackgroundClip: segment.gradient ? "text" : undefined,
+    color: segment.color,
+    WebkitTextFillColor: segment.gradient ? "transparent" : undefined,
+    fontWeight: segment.bold ? 700 : undefined,
+    fontStyle: segment.italic ? "italic" : undefined,
+    textDecoration:
+      [
+        segment.underlined ? "underline" : undefined,
+        segment.strikethrough ? "line-through" : undefined,
+      ]
+        .filter(Boolean)
+        .join(" ") || undefined,
+  };
 }
 
 export function Stat(props: { label: string; value: string }) {

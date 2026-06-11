@@ -3,7 +3,9 @@ import {
   DEFAULT_NODE_IMAGE_TITLE,
   DEFAULT_SERVER_IMAGE_TITLE,
   PORTAL_IMAGE_BRAND,
+  DEFAULT_COPYRIGHT_TEXT,
   resolveNodeImageTitle,
+  resolvePortalTitle,
   resolveServerImageTitle,
   type Config,
 } from "./config";
@@ -25,9 +27,11 @@ export interface CodeAuthoredLayoutDefinition {
 
 export interface VisualizationMockData {
   portalName: string;
+  copyright: string;
   nodeTitle: string;
   serverTitle: string;
-  generatedAt: string;
+  showGeneratedAt: boolean;
+  generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
   nodes: NodeStatus[];
@@ -128,6 +132,7 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         nodeId: "node-shanghai-01",
         nodeName: "Shanghai Node",
         address: "play.example.com:25565",
+        latencyMs: 42,
         onlinePlayers: 18,
         maxPlayers: 64,
         version: "1.20.1",
@@ -143,6 +148,7 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         nodeId: "node-shanghai-01",
         nodeName: "Shanghai Node",
         address: "creative.example.com:25566",
+        latencyMs: 136,
         onlinePlayers: 7,
         maxPlayers: 40,
         version: "1.20.4",
@@ -158,6 +164,7 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         nodeId: "node-backup-01",
         nodeName: "Backup Node",
         address: "modded.example.com:25567",
+        latencyMs: 0,
         onlinePlayers: 0,
         maxPlayers: 20,
         version: "1.19.2",
@@ -169,11 +176,14 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
 }
 
 function createVisualizationDataBase(config?: Config) {
+  const showGeneratedAt = config?.image.showGeneratedAt ?? true;
   return {
-    portalName: PORTAL_IMAGE_BRAND,
+    portalName: config ? resolvePortalTitle(config) : PORTAL_IMAGE_BRAND,
+    copyright: DEFAULT_COPYRIGHT_TEXT,
     nodeTitle: config ? resolveNodeImageTitle(config) : DEFAULT_NODE_IMAGE_TITLE,
     serverTitle: config ? resolveServerImageTitle(config) : DEFAULT_SERVER_IMAGE_TITLE,
-    generatedAt: new Date().toISOString(),
+    showGeneratedAt,
+    generatedAt: showGeneratedAt ? new Date().toISOString() : undefined,
     backgroundTexture: config?.image.backgroundTexture || undefined,
     backgroundTile: resolveBackgroundTextureDataUri(config?.image.backgroundTexture),
   };

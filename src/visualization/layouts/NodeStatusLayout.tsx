@@ -20,6 +20,7 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
       title={data.nodeTitle}
       subtitle={`${online}/${data.nodes.length} nodes online`}
       brand={data.portalName}
+      copyright={data.copyright}
       generatedAt={data.generatedAt}
       backgroundTile={data.backgroundTile}
     >
@@ -62,11 +63,6 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
               <Stat label="Platform" value={node.platform ?? "unknown"} />
               <Stat label="Version" value={node.version ?? "unknown"} />
             </footer>
-            {node.remark ? (
-              <p className="m-0 mt-3 leading-[1.45] opacity-80">
-                {node.remark}
-              </p>
-            ) : null}
           </div>
         )) : (
           <div className="grid min-h-[220px] place-items-center text-center font-minecraft text-[22px] opacity-75">

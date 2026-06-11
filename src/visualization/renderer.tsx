@@ -3,8 +3,9 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  PORTAL_IMAGE_BRAND,
+  DEFAULT_COPYRIGHT_TEXT,
   resolveNodeImageTitle,
+  resolvePortalTitle,
   resolveServerImageTitle,
   type Config,
 } from "../config";
@@ -50,10 +51,12 @@ export function createVisualizationData(
   servers: MinecraftInstance[],
 ): VisualizationLayoutData {
   return {
-    portalName: PORTAL_IMAGE_BRAND,
+    portalName: resolvePortalTitle(config),
+    copyright: DEFAULT_COPYRIGHT_TEXT,
     nodeTitle: resolveNodeImageTitle(config),
     serverTitle: resolveServerImageTitle(config),
-    generatedAt: new Date().toISOString(),
+    showGeneratedAt: config.image.showGeneratedAt,
+    generatedAt: config.image.showGeneratedAt ? new Date().toISOString() : undefined,
     backgroundTexture: config.image.backgroundTexture || undefined,
     backgroundTile: resolveBackgroundTextureDataUri(config.image.backgroundTexture),
     nodes,

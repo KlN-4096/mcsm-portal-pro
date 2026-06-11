@@ -29,6 +29,7 @@ export interface MinecraftInstance {
   nodeName?: string;
   address?: string;
   iconUrl?: string;
+  latencyMs?: number;
   onlinePlayers?: number;
   maxPlayers?: number;
   version?: string;

@@ -67,6 +67,7 @@ interface MinecraftInstance {
   nodeName?: string;
   address?: string;
   iconUrl?: string;
+  latencyMs?: number;
   onlinePlayers?: number;
   maxPlayers?: number;
   version?: string;
@@ -87,9 +88,11 @@ interface MinecraftTextSegment {
 
 interface VisualizationMockData {
   portalName: string;
+  copyright: string;
   nodeTitle: string;
   serverTitle: string;
-  generatedAt: string;
+  showGeneratedAt: boolean;
+  generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
   nodes: NodeStatus[];
@@ -120,16 +123,24 @@ const PreviewPage = defineComponent({
     const realError = ref("");
     const workbench = ref<HTMLElement>();
     const isStacked = ref(false);
+    const previewGeneratedAt = ref(new Date().toISOString());
     let resizeObserver: ResizeObserver | undefined;
     let observedWorkbench: HTMLElement | undefined;
+    let generatedAtTimer: ReturnType<typeof setInterval> | undefined;
 
     const layouts = computed(() => rpc.value?.layouts ?? []);
     const mock = computed(() => rpc.value?.mock);
-    const activeData = computed(() =>
-      dataSource.value === "real" && realData.value
-        ? realData.value
-        : mock.value,
-    );
+    const activeData = computed(() => {
+      const data =
+        dataSource.value === "real" && realData.value
+          ? realData.value
+          : mock.value;
+      if (!data) return data;
+      return {
+        ...data,
+        generatedAt: data.showGeneratedAt ? previewGeneratedAt.value : undefined,
+      };
+    });
     const activeSourceLabel = computed(() =>
       dataSource.value === "real" && realData.value ? "real" : "mock",
     );
@@ -197,6 +208,9 @@ const PreviewPage = defineComponent({
     }
 
     onMounted(() => {
+      generatedAtTimer = setInterval(() => {
+        previewGeneratedAt.value = new Date().toISOString();
+      }, 1000);
       resizeObserver = new ResizeObserver(updateLayoutMode);
       if (workbench.value) resizeObserver.observe(workbench.value);
       observedWorkbench = workbench.value;
@@ -204,6 +218,7 @@ const PreviewPage = defineComponent({
     });
 
     onBeforeUnmount(() => {
+      if (generatedAtTimer) clearInterval(generatedAtTimer);
       resizeObserver?.disconnect();
     });
 
@@ -441,9 +456,11 @@ const PreviewPage = defineComponent({
                                       ),
                                       summaryItem(
                                         "Generated",
-                                        formatDate(
-                                          activeData.value.generatedAt,
-                                        ),
+                                        activeData.value.generatedAt
+                                          ? formatDate(
+                                              activeData.value.generatedAt,
+                                            )
+                                          : "Hidden",
                                       ),
                                       summaryItem(
                                         "Nodes",
@@ -566,7 +583,7 @@ export default defineExtension((ctx) => {
   ctx.page({
     id: "mcsm-portal-preview",
     path: "/mcsm-portal/preview",
-    name: "MCSM Preview",
+    name: "MCSM Portal Preview",
     icon: "activity:default",
     component: PreviewPage,
   });
