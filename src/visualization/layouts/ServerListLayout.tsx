@@ -169,7 +169,7 @@ function renderMotdSegmentText(text: string) {
       <span
         key={`${index}-${spaceIndex}`}
         className="inline-block"
-        style={{ width: character === "\t" ? "2em" : "0.5em" }}
+        style={{ width: character === "\t" ? "2.67em" : "0.67em" }}
         aria-hidden="true"
       />
     ));
