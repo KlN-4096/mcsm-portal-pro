@@ -28,6 +28,7 @@ const fonts: FontSource[] = [
     family: "Minecraft Ten",
     file: "minecraft-ten.ttf",
     format: "truetype",
+    unicodeRange: "U+0000-00FF",
   },
   {
     family: "Monocraft",
@@ -38,6 +39,13 @@ const fonts: FontSource[] = [
     family: "Minecraft Five",
     file: "minecraft-five-bold.otf",
     format: "opentype",
+    unicodeRange: "U+0000-00FF",
+  },
+  {
+    family: "Vonwaon Bitmap 12px",
+    file: "VONWAONBITMAP-12PX.TTF",
+    format: "truetype",
+    unicodeRange: "U+0100-10FFFF",
   },
 ];
 

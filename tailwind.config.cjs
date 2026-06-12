@@ -10,12 +10,14 @@ module.exports = {
         minecraft: ['"Minecraft"', '"Unifont"', "sans-serif"],
         "minecraft-five": [
           '"Minecraft Five"',
+          '"Vonwaon Bitmap 12px"',
           '"Minecraft"',
           '"Unifont"',
           "sans-serif",
         ],
         "minecraft-ten": [
           '"Minecraft Ten"',
+          '"Vonwaon Bitmap 12px"',
           '"Minecraft"',
           '"Unifont"',
           "sans-serif",

@@ -7,9 +7,16 @@ import {
   resolveNodeImageTitle,
   resolvePortalTitle,
   resolveServerImageTitle,
+  createRuntimeConfig,
   type Config,
 } from "./config";
 import type { MCSManagerClient } from "./client";
+import {
+  createDefaultRenderText,
+  createVisualizationLayoutText,
+  type RenderText,
+} from "./render-text";
+import type { VisualizationLayoutText } from "./visualization/layouts";
 import { resolveBackgroundTextureChoice } from "./visualization/styles";
 import { PLUGIN_VERSION } from "./version";
 
@@ -36,10 +43,13 @@ export interface VisualizationMockData {
   generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
+  text: VisualizationLayoutText;
   textPreviews?: Partial<Record<VisualizationSurface, string>>;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
 }
+
+type VisualizationMockDataWithoutText = Omit<VisualizationMockData, "text">;
 
 export interface PreviewEntryData {
   version: 1;
@@ -85,16 +95,19 @@ export async function createRealPreviewData(config: Config, client: MCSManagerCl
   const servers = await client.listMinecraftInstances();
 
   return {
-    ...createVisualizationDataBase(config),
-    nodes,
-    servers,
+    ...withVisualizationText(
+      {
+        ...createVisualizationDataBase(config),
+        nodes,
+        servers,
+      },
+      config,
+    ),
   };
 }
 
 export function createMockPreviewData(config?: Config): VisualizationMockData {
-  return {
-    ...createVisualizationDataBase(config),
-    nodes: [
+  const nodes: NodeStatus[] = [
       {
         id: "node-shanghai-01",
         name: "Shanghai Node",
@@ -124,8 +137,8 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         platform: "linux x64",
         remark: "Maintenance window",
       },
-    ],
-    servers: [
+    ];
+  const servers: MinecraftInstance[] = [
       {
         id: "survival-01",
         name: "Survival SMP",
@@ -193,8 +206,15 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         ],
         modList: ["Create", "Botania", "Twilight Forest"],
       },
-    ],
-  };
+    ];
+  return withVisualizationText(
+    {
+      ...createVisualizationDataBase(config),
+      nodes,
+      servers,
+    },
+    config,
+  );
 }
 
 function createVisualizationDataBase(config?: Config) {
@@ -213,6 +233,23 @@ function createVisualizationDataBase(config?: Config) {
     backgroundTexture: backgroundTexture.name || undefined,
     backgroundTile: backgroundTexture.dataUri,
   };
+}
+
+function withVisualizationText(
+  data: VisualizationMockDataWithoutText,
+  config?: Config,
+): VisualizationMockData {
+  const text = config
+    ? createDefaultRenderText(config)
+    : createFallbackRenderText();
+  return {
+    ...data,
+    text: createVisualizationLayoutText(text, data.nodes, data.servers),
+  };
+}
+
+function createFallbackRenderText(): RenderText {
+  return createDefaultRenderText(createRuntimeConfig({}));
 }
 
 export function withImageWidth(layout: CodeAuthoredLayoutDefinition, width = 854): CodeAuthoredLayoutDefinition {

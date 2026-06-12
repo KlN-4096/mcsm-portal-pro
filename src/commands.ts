@@ -1,7 +1,8 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
 import { resolveNodeImageTitle, type Config } from "./config";
-import { renderNodeStatus, renderServerList, type RenderText } from "./render";
+import { renderNodeStatus, renderServerList } from "./render";
+import type { RenderText } from "./render-text";
 import { resolveServerAddress } from "./servers";
 
 export function registerCommands(ctx: Context, config: Config, client: MCSManagerClient) {
@@ -117,6 +118,8 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
     noServers: text(session, scope, "render.no-servers"),
     nodeSummary: (online, total) => text(session, scope, "render.node-summary", { online, total }),
     serverSummary: (total) => text(session, scope, "render.server-summary", { total }),
+    nodesOnline: (online, total) => text(session, scope, "render.nodes-online", { online, total }),
+    serversOnline: (online, total) => text(session, scope, "render.servers-online", { online, total }),
     online: text(session, scope, "render.online"),
     offline: text(session, scope, "render.offline"),
     cpu: text(session, scope, "render.cpu"),
@@ -130,7 +133,13 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
     motd: text(session, scope, "render.motd"),
     modList: text(session, scope, "render.mod-list"),
     tags: text(session, scope, "render.tags"),
+    instances: text(session, scope, "render.instances"),
+    platform: text(session, scope, "render.platform"),
     unknown: text(session, scope, "render.unknown"),
+    noNodesAvailable: text(session, scope, "render.no-nodes-available"),
+    noServersAvailable: text(session, scope, "render.no-servers-available"),
+    noAddressConfigured: text(session, scope, "render.no-address-configured"),
+    defaultMotd: text(session, scope, "render.default-motd"),
     instanceCounts: (running, stopped, total) => text(session, scope, "render.instance-counts", { running, stopped, total }),
     playerCount: (online, max) => text(session, scope, "render.player-count", { online, max }),
     mods: (count) => text(session, scope, "render.mods", { count }),

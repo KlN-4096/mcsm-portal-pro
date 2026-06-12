@@ -16,10 +16,6 @@ import type { MinecraftInstance, MinecraftTextSegment } from "../../types";
 import type { VisualizationLayoutProps } from "./types";
 
 export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
-  const running = data.servers.filter(
-    (server) => server.status === "running",
-  ).length;
-
   return (
     <ImageShell
       className="flex flex-col gap-3.5 px-8 pb-5 pt-6"
@@ -30,7 +26,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
         <ImageTitleBlock
           brand={data.portalName}
           title={data.serverTitle}
-          subtitle={`${running}/${data.servers.length} servers online`}
+          subtitle={data.text.serverOnlineSummary}
           centered
         />
       </header>
@@ -67,10 +63,10 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                   </strong>
                 </div>
                 <div className="mt-1 grid min-h-9 grid-rows-[repeat(2,18px)] content-start overflow-hidden leading-[18px]">
-                  {renderMotd(server)}
+                  {renderMotd(server, data.text.defaultMotd)}
                 </div>
                 <p className="m-0 self-end overflow-hidden text-ellipsis whitespace-nowrap font-minecraft text-[11px] leading-[13px] opacity-70">
-                  {server.address ?? "No address configured"}
+                  {server.address ?? data.text.noAddressConfigured}
                 </p>
               </div>
               <aside className="grid min-h-[60px] min-w-0 w-full content-stretch justify-items-end gap-1 overflow-hidden grid-rows-[auto_auto_1fr]">
@@ -108,10 +104,10 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                       latencyTextClass(server),
                     )}
                   >
-                    {serverLatencyLabel(server).toUpperCase()}
+                    {serverLatencyLabel(server, data.text.statusLabels)}
                   </small>
                   <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-monocraft text-sm leading-none tracking-[-0.04em]">
-                    {formatPlayers(server)}
+                    {formatPlayers(server, data.text.unknown)}
                   </span>
                 </div>
                 <small className="max-w-full self-end break-words text-right font-minecraft">
@@ -122,7 +118,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
           ))
         ) : (
           <div className="grid min-h-[180px] place-items-center text-center font-minecraft text-[22px] opacity-75">
-            No servers available
+            {data.text.noServersAvailable}
           </div>
         )}
       </section>
@@ -144,11 +140,11 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
   );
 }
 
-function renderMotd(server: MinecraftInstance) {
+function renderMotd(server: MinecraftInstance, defaultMotd: string) {
   const lines = splitMotdLines(
     server.motdSegments?.length
       ? server.motdSegments
-      : [{ text: server.motd ?? server.address ?? "Minecraft Server" }],
+      : [{ text: server.motd ?? server.address ?? defaultMotd }],
   );
 
   return [0, 1].map((index) => (

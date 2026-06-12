@@ -212,32 +212,31 @@ function normalizeVisualProgress(value: number) {
   return value;
 }
 
-export function percent(value?: number) {
-  if (typeof value !== "number") return "unknown";
+export function percent(value?: number, unknown = "unknown") {
+  if (typeof value !== "number") return unknown;
   return `${Math.round(value * 100)}%`;
 }
 
-export function bytesPair(used?: number, total?: number) {
-  if (typeof used !== "number" || typeof total !== "number") return "unknown";
+export function bytesPair(used?: number, total?: number, unknown = "unknown") {
+  if (typeof used !== "number" || typeof total !== "number") return unknown;
   return `${formatBytes(used)} / ${formatBytes(total)}`;
 }
 
-export function formatPlayers(server: MinecraftInstance) {
+export function formatPlayers(server: MinecraftInstance, unknown = "unknown") {
   if (
     typeof server.onlinePlayers !== "number" &&
     typeof server.maxPlayers !== "number"
   ) {
-    return "unknown";
+    return unknown;
   }
   return `${server.onlinePlayers ?? "?"}/${server.maxPlayers ?? "?"}`;
 }
 
-export function serverLatencyLabel(server: MinecraftInstance) {
-  if (server.status === "running") return "Online";
-  if (server.status === "starting") return "Starting";
-  if (server.status === "stopping") return "Stopping";
-  if (server.status === "stopped") return "Offline";
-  return "Unknown";
+export function serverLatencyLabel(
+  server: MinecraftInstance,
+  labels: Record<MinecraftInstance["status"], string>,
+) {
+  return labels[server.status] ?? labels.unknown;
 }
 
 export function formatDate(value: string) {

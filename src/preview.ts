@@ -7,8 +7,8 @@ import {
   createRealPreviewData,
   type VisualizationMockData,
 } from "./visualization";
+import { createDefaultRenderText } from "./render-text";
 import {
-  createDefaultRenderText,
   renderNodeStatusText,
   renderServerListText,
 } from "./render";

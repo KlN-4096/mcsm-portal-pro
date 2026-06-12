@@ -5,6 +5,7 @@ import {
   type Config,
 } from "./config";
 import type { MinecraftInstance, NodeStatus, ServerFieldVisibility } from "./types";
+import type { RenderText } from "./render-text";
 import {
   renderNodeStatusVisualization,
   renderServerListVisualization,
@@ -13,66 +14,13 @@ import {
 } from "./visualization/renderer";
 import { resolveGameType } from "./minecraft-server";
 
-export interface RenderText {
-  noNodes: string;
-  noServers: string;
-  nodeSummary: (online: number, total: number) => string;
-  serverSummary: (total: number) => string;
-  online: string;
-  offline: string;
-  cpu: string;
-  memory: string;
-  address: string;
-  status: string;
-  node: string;
-  players: string;
-  type: string;
-  version: string;
-  motd: string;
-  modList: string;
-  tags: string;
-  unknown: string;
-  instanceCounts: (running: number, stopped: number, total: number) => string;
-  playerCount: (online: number, max: number | string) => string;
-  mods: (count: number) => string;
-  statusLabel: (status: MinecraftInstance["status"]) => string;
-}
-
-export function createDefaultRenderText(config: Config): RenderText {
-  return {
-    noNodes: `${resolveNodeImageTitle(config)}: no MCSManager nodes were returned.`,
-    noServers: "No Minecraft server instances were returned by MCSManager.",
-    nodeSummary: (online, total) => `Nodes: ${online}/${total} online`,
-    serverSummary: (total) => `Minecraft servers: ${total}`,
-    online: "online",
-    offline: "offline",
-    cpu: "CPU",
-    memory: "Memory",
-    address: "Address",
-    status: "Status",
-    node: "Node",
-    players: "Players",
-    type: "Type",
-    version: "Version",
-    motd: "MOTD",
-    modList: "Mods",
-    tags: "Tags",
-    unknown: "unknown",
-    instanceCounts: (running, stopped, total) =>
-      `Instances ${running} running / ${stopped} stopped / ${total} total`,
-    playerCount: (online, max) => `${online}/${max} online`,
-    mods: (count) => `${count} mods`,
-    statusLabel: (status) => status,
-  };
-}
-
 export function renderNodeStatus(ctx: Context, config: Config, nodes: NodeStatus[], text: RenderText) {
   if (!nodes.length) return text.noNodes;
   if (config.output.mode === "image") {
     return renderVisualizationImage(
       ctx,
       config,
-      renderNodeStatusVisualization(config, nodes),
+      renderNodeStatusVisualization(config, nodes, text),
     );
   }
   return renderNodeStatusText(config, nodes, text);
@@ -84,7 +32,7 @@ export function renderServerList(ctx: Context, config: Config, servers: Minecraf
     return renderVisualizationImage(
       ctx,
       config,
-      renderServerListVisualization(config, servers),
+      renderServerListVisualization(config, servers, text),
     );
   }
   return renderServerListText(config, servers, text);

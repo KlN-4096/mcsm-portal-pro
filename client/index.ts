@@ -11,7 +11,7 @@ import {
   resolveComponent,
   watchEffect,
 } from "vue";
-import { defineExtension, send, useRpc } from "@koishijs/client";
+import { defineExtension, send, useConfig, useRpc } from "@koishijs/client";
 import {
   NodeStatusLayout,
   ServerListLayout,
@@ -86,6 +86,24 @@ interface MinecraftTextSegment {
   strikethrough?: boolean;
 }
 
+interface VisualizationLayoutText {
+  nodeOnlineSummary: string;
+  serverOnlineSummary: string;
+  online: string;
+  offline: string;
+  cpu: string;
+  memory: string;
+  instances: string;
+  platform: string;
+  version: string;
+  unknown: string;
+  noNodesAvailable: string;
+  noServersAvailable: string;
+  noAddressConfigured: string;
+  defaultMotd: string;
+  statusLabels: Record<InstanceStatus, string>;
+}
+
 interface VisualizationMockData {
   portalName: string;
   copyright: string;
@@ -96,6 +114,7 @@ interface VisualizationMockData {
   generatedAt?: string;
   backgroundTexture?: string;
   backgroundTile?: string;
+  text: VisualizationLayoutText;
   textPreviews?: Partial<Record<VisualizationSurface, string>>;
   nodes: NodeStatus[];
   servers: MinecraftInstance[];
@@ -114,10 +133,125 @@ interface RealPreviewResponse {
   error?: string;
 }
 
+type PreviewLocale = "en-US" | "zh-CN";
+
+const previewMessages = {
+  "en-US": {
+    pageTitle: "MCSM Portal Preview",
+    layout: "Layout",
+    dataSource: "Data Source",
+    mock: "Mock",
+    real: "Real",
+    loading: "Loading...",
+    refreshing: "Refreshing...",
+    refreshRealData: "Refresh real data",
+    realHint: "Switch between generated mock content and live MCSManager data.",
+    realHintUnavailable:
+      "Switch between generated mock content and live MCSManager data. Configure MCSManager endpoint and API key to enable Real.",
+    realUnavailable:
+      "Real data is unavailable because the MCSManager connection is not configured.",
+    realFailed: "Failed to load real preview data.",
+    component: "Component",
+    renderer: "Renderer",
+    background: "Background",
+    selectedBackground: "Selected background texture",
+    none: "None",
+    textPreview: "Text Preview",
+    textPreviewUnavailable: "Text preview is unavailable.",
+    data: "Data",
+    brand: "Brand",
+    nodeTitle: "Node title",
+    serverTitle: "Server title",
+    generated: "Generated",
+    hidden: "Hidden",
+    nodes: "Nodes",
+    servers: "Servers",
+    noPreviewData: "No visualization preview data is available.",
+    nodeStatus: "Node Status",
+    serverList: "Server List",
+    nodeStatusSurface: "node status",
+    serverListSurface: "server list",
+    nodesOnline: "{online}/{total} nodes online",
+    serversOnline: "{online}/{total} servers online",
+    online: "online",
+    offline: "offline",
+    cpu: "CPU",
+    memory: "Memory",
+    instances: "Instances",
+    platform: "Platform",
+    version: "Version",
+    unknown: "unknown",
+    noNodesAvailable: "No nodes available",
+    noServersAvailable: "No servers available",
+    noAddressConfigured: "No address configured",
+    defaultMotd: "Minecraft Server",
+    statusRunning: "running",
+    statusStopped: "stopped",
+    statusStarting: "starting",
+    statusStopping: "stopping",
+    statusUnknown: "unknown",
+  },
+  "zh-CN": {
+    pageTitle: "MCSM Portal 预览",
+    layout: "布局",
+    dataSource: "数据源",
+    mock: "模拟",
+    real: "实时",
+    loading: "加载中……",
+    refreshing: "刷新中……",
+    refreshRealData: "刷新实时数据",
+    realHint: "在生成的模拟内容和实时 MCSManager 数据之间切换。",
+    realHintUnavailable:
+      "在生成的模拟内容和实时 MCSManager 数据之间切换。配置 MCSManager 地址和 API 密钥后可启用实时数据。",
+    realUnavailable: "实时数据不可用：尚未配置 MCSManager 地址或 API 密钥。",
+    realFailed: "加载实时预览数据失败。",
+    component: "组件",
+    renderer: "渲染器",
+    background: "背景",
+    selectedBackground: "已选择的背景纹理",
+    none: "无",
+    textPreview: "文本预览",
+    textPreviewUnavailable: "文本预览不可用。",
+    data: "数据",
+    brand: "品牌",
+    nodeTitle: "节点标题",
+    serverTitle: "服务器标题",
+    generated: "生成时间",
+    hidden: "隐藏",
+    nodes: "节点",
+    servers: "服务器",
+    noPreviewData: "没有可用的可视化预览数据。",
+    nodeStatus: "节点状态",
+    serverList: "服务器列表",
+    nodeStatusSurface: "节点状态",
+    serverListSurface: "服务器列表",
+    nodesOnline: "{online}/{total} 个节点在线",
+    serversOnline: "{online}/{total} 个服务器在线",
+    online: "在线",
+    offline: "离线",
+    cpu: "CPU",
+    memory: "内存",
+    instances: "实例",
+    platform: "平台",
+    version: "版本",
+    unknown: "未知",
+    noNodesAvailable: "没有可用节点",
+    noServersAvailable: "没有可用服务器",
+    noAddressConfigured: "未配置地址",
+    defaultMotd: "Minecraft 服务器",
+    statusRunning: "运行中",
+    statusStopped: "已停止",
+    statusStarting: "启动中",
+    statusStopping: "停止中",
+    statusUnknown: "未知",
+  },
+} satisfies Record<PreviewLocale, Record<string, string>>;
+
 const PreviewPage = defineComponent({
   name: "McsmPortalVisualizationPreview",
   setup() {
     const rpc = useRpc<PreviewEntryData>();
+    const consoleConfig = useConfig();
     const selectedLayoutId = ref("");
     const dataSource = ref<"mock" | "real">("mock");
     const realData = ref<VisualizationMockData>();
@@ -141,16 +275,68 @@ const PreviewPage = defineComponent({
       return {
         ...data,
         generatedAt: data.showGeneratedAt ? previewGeneratedAt.value : undefined,
+        text: createPreviewLayoutText(data),
       };
     });
     const activeSourceLabel = computed(() =>
       dataSource.value === "real" && realData.value ? "real" : "mock",
+    );
+    const activeSourceText = computed(() =>
+      activeSourceLabel.value === "real" ? t("real") : t("mock"),
     );
     const selectedLayout = computed(
       () =>
         layouts.value.find((layout) => layout.id === selectedLayoutId.value) ??
         layouts.value[0],
     );
+    const currentLocale = computed<PreviewLocale>(() =>
+      consoleConfig.value.locale === "zh-CN" ? "zh-CN" : "en-US",
+    );
+    const t = (key: keyof typeof previewMessages["en-US"]) =>
+      previewMessages[currentLocale.value][key];
+    const layoutName = (layout: CodeAuthoredLayoutDefinition) =>
+      layout.surface === "node-status" ? t("nodeStatus") : t("serverList");
+    const surfaceLabel = (surface: VisualizationSurface) =>
+      surface === "node-status" ? t("nodeStatusSurface") : t("serverListSurface");
+
+    function createPreviewLayoutText(
+      data: VisualizationMockData,
+    ): VisualizationLayoutText {
+      const onlineNodes = data.nodes.filter((node) => node.online).length;
+      const onlineServers = data.servers.filter(
+        (server) => server.status === "running",
+      ).length;
+
+      return {
+        nodeOnlineSummary: formatMessage(t("nodesOnline"), {
+          online: onlineNodes,
+          total: data.nodes.length,
+        }),
+        serverOnlineSummary: formatMessage(t("serversOnline"), {
+          online: onlineServers,
+          total: data.servers.length,
+        }),
+        online: t("online"),
+        offline: t("offline"),
+        cpu: t("cpu"),
+        memory: t("memory"),
+        instances: t("instances"),
+        platform: t("platform"),
+        version: t("version"),
+        unknown: t("unknown"),
+        noNodesAvailable: t("noNodesAvailable"),
+        noServersAvailable: t("noServersAvailable"),
+        noAddressConfigured: t("noAddressConfigured"),
+        defaultMotd: t("defaultMotd"),
+        statusLabels: {
+          running: t("statusRunning"),
+          stopped: t("statusStopped"),
+          starting: t("statusStarting"),
+          stopping: t("statusStopping"),
+          unknown: t("statusUnknown"),
+        },
+      };
+    }
 
     const KLayout = resolveComponent("k-layout");
     const ElScrollbar = resolveComponent("el-scrollbar");
@@ -172,8 +358,7 @@ const PreviewPage = defineComponent({
 
     async function loadRealData() {
       if (!rpc.value?.realDataAvailable) {
-        realError.value =
-          "Real data is unavailable because the MCSManager connection is not configured.";
+        realError.value = t("realUnavailable");
         return false;
       }
 
@@ -184,8 +369,7 @@ const PreviewPage = defineComponent({
           "mcsm-portal/preview-data",
         )) as RealPreviewResponse;
         if (!response.ok || !response.data) {
-          realError.value =
-            response.error ?? "Failed to load real preview data.";
+          realError.value = response.error ?? t("realFailed");
           return false;
         }
         realData.value = response.data;
@@ -245,7 +429,7 @@ const PreviewPage = defineComponent({
         KLayout,
         { main: "mcsm-portal-preview-page" },
         {
-          header: () => "MCSM Portal Preview",
+          header: () => t("pageTitle"),
           default: () =>
             h(ElScrollbar, null, {
               default: () =>
@@ -271,7 +455,7 @@ const PreviewPage = defineComponent({
                                 "mcsm-portal-panel mcsm-portal-layout-list",
                             },
                             [
-                              h("h2", "Layout"),
+                              h("h2", t("layout")),
                               h(
                                 "div",
                                 { class: "mcsm-portal-layout-buttons" },
@@ -291,14 +475,14 @@ const PreviewPage = defineComponent({
                                       },
                                     },
                                     [
-                                      h("strong", layout.name),
-                                      h("span", layout.surface),
+                                      h("strong", layoutName(layout)),
+                                      h("span", surfaceLabel(layout.surface)),
                                     ],
                                   ),
                                 ),
                               ),
                               h("hr"),
-                              h("h2", "Data Source"),
+                              h("h2", t("dataSource")),
                               h("div", { class: "mcsm-portal-source-toggle" }, [
                                 h(
                                   "div",
@@ -316,7 +500,7 @@ const PreviewPage = defineComponent({
                                         },
                                         onClick: () => selectDataSource("mock"),
                                       },
-                                      "Mock",
+                                      t("mock"),
                                     ),
                                     h(
                                       "button",
@@ -331,7 +515,7 @@ const PreviewPage = defineComponent({
                                         },
                                         onClick: () => selectDataSource("real"),
                                       },
-                                      realLoading.value ? "Loading..." : "Real",
+                                      realLoading.value ? t("loading") : t("real"),
                                     ),
                                   ],
                                 ),
@@ -346,8 +530,8 @@ const PreviewPage = defineComponent({
                                         onClick: refreshRealData,
                                       },
                                       realLoading.value
-                                        ? "Refreshing..."
-                                        : "Refresh real data",
+                                        ? t("refreshing")
+                                        : t("refreshRealData"),
                                     )
                                   : null,
                                 realError.value
@@ -366,23 +550,23 @@ const PreviewPage = defineComponent({
                                           "mcsm-portal-source-toggle__hint",
                                       },
                                       rpc.value?.realDataAvailable
-                                        ? "Switch between generated mock content and live MCSManager data."
-                                        : "Switch between generated mock content and live MCSManager data. Configure MCSManager endpoint and API key to enable Real.",
+                                        ? t("realHint")
+                                        : t("realHintUnavailable"),
                                     ),
                               ]),
                               h("hr"),
-                              h("h2", "Component"),
+                              h("h2", t("component")),
                               h("dl", { class: "mcsm-portal-code-meta" }, [
-                                h("dt", "Renderer"),
+                                h("dt", t("renderer")),
                                 h("dd", selectedLayout.value.renderer),
-                                h("dt", "Component"),
+                                h("dt", t("component")),
                                 h("dd", [
                                   h("code", selectedLayout.value.componentPath),
                                   h("small", selectedLayout.value.exportName),
                                 ]),
                               ]),
                               h("hr"),
-                              h("h2", "Background"),
+                              h("h2", t("background")),
                               h(
                                 "div",
                                 { class: "mcsm-portal-texture-preview" },
@@ -392,7 +576,7 @@ const PreviewPage = defineComponent({
                                         src: activeData.value.backgroundTile,
                                         alt:
                                           activeData.value.backgroundTexture ??
-                                          "Selected background texture",
+                                          t("selectedBackground"),
                                       })
                                     : h("div", {
                                         class:
@@ -401,7 +585,7 @@ const PreviewPage = defineComponent({
                                   h(
                                     "span",
                                     activeData.value.backgroundTexture ||
-                                      "None",
+                                      t("none"),
                                   ),
                                 ],
                               ),
@@ -421,10 +605,10 @@ const PreviewPage = defineComponent({
                                   "div",
                                   { class: "mcsm-portal-panel__heading" },
                                   [
-                                    h("h2", selectedLayout.value.name),
+                                    h("h2", layoutName(selectedLayout.value)),
                                     h(
                                       "span",
-                                      capitalize(activeSourceLabel.value),
+                                      activeSourceText.value,
                                     ),
                                   ],
                                 ),
@@ -445,15 +629,15 @@ const PreviewPage = defineComponent({
                                           "mcsm-portal-text-preview__heading",
                                       },
                                       [
-                                        h("strong", "Text Preview"),
-                                        h("span", selectedLayout.value.surface),
+                                        h("strong", t("textPreview")),
+                                        h("span", surfaceLabel(selectedLayout.value.surface)),
                                       ],
                                     ),
                                     h(
                                       "pre",
                                       activeData.value.textPreviews?.[
                                         selectedLayout.value.surface
-                                      ] ?? "Text preview is unavailable.",
+                                      ] ?? t("textPreviewUnavailable"),
                                     ),
                                   ],
                                 ),
@@ -465,37 +649,37 @@ const PreviewPage = defineComponent({
                                     "mcsm-portal-panel mcsm-portal-mock-summary",
                                 },
                                 [
-                                  h("h2", "Data"),
+                                  h("h2", t("data")),
                                   h(
                                     "div",
                                     { class: "mcsm-portal-summary-grid" },
                                     [
                                       summaryItem(
-                                        "Brand",
+                                        t("brand"),
                                         activeData.value.portalName,
                                       ),
                                       summaryItem(
-                                        "Node title",
+                                        t("nodeTitle"),
                                         activeData.value.nodeTitle,
                                       ),
                                       summaryItem(
-                                        "Server title",
+                                        t("serverTitle"),
                                         activeData.value.serverTitle,
                                       ),
                                       summaryItem(
-                                        "Generated",
+                                        t("generated"),
                                         activeData.value.generatedAt
                                           ? formatDate(
                                               activeData.value.generatedAt,
                                             )
-                                          : "Hidden",
+                                          : t("hidden"),
                                       ),
                                       summaryItem(
-                                        "Nodes",
+                                        t("nodes"),
                                         String(activeData.value.nodes.length),
                                       ),
                                       summaryItem(
-                                        "Servers",
+                                        t("servers"),
                                         String(activeData.value.servers.length),
                                       ),
                                     ],
@@ -509,7 +693,7 @@ const PreviewPage = defineComponent({
                     : h(
                         "section",
                         { class: "mcsm-portal-panel" },
-                        "No visualization preview data is available.",
+                        t("noPreviewData"),
                       ),
                 ]),
             }),
@@ -635,6 +819,11 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
-function capitalize(value: string) {
-  return value.slice(0, 1).toUpperCase() + value.slice(1);
+function formatMessage(
+  template: string,
+  params: Record<string, string | number>,
+) {
+  return template.replace(/\{(\w+)\}/g, (source, key) =>
+    params[key] === undefined ? source : String(params[key]),
+  );
 }

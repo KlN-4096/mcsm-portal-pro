@@ -1,1 +1,3 @@
-export const PLUGIN_VERSION = "0.0.5";
+const packageMetadata = require("../package.json") as { version: string };
+
+export const PLUGIN_VERSION = packageMetadata.version;

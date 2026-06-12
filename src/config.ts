@@ -1,15 +1,17 @@
 import { Schema } from "koishi";
+import { CONFIG_LOCALES } from "./config.locales";
 import type { ServerFieldVisibility } from "./types";
 import {
   listBackgroundTextureNames,
   RANDOM_BACKGROUND_TEXTURE,
 } from "./visualization/styles";
 
-type RecursivePartial<T> = T extends Array<infer U>
-  ? RecursivePartial<U>[]
-  : T extends object
-    ? { [K in keyof T]?: RecursivePartial<T[K]> }
-    : T;
+type RecursivePartial<T> =
+  T extends Array<infer U>
+    ? RecursivePartial<U>[]
+    : T extends object
+      ? { [K in keyof T]?: RecursivePartial<T[K]> }
+      : T;
 
 export interface ConnectionConfig {
   endpoint: string;
@@ -114,7 +116,7 @@ const DEFAULT_OUTPUT_CONFIG: OutputConfig = {
   text: DEFAULT_TEXT_CONFIG,
 };
 const DEFAULT_PREVIEW_CONFIG: PreviewConfig = {
-  enabled: true,
+  enabled: false,
 };
 const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
   pageSize: 50,
@@ -169,10 +171,14 @@ export const Config = Schema.object({
       .description("MCSManager API key.")
       .default(DEFAULT_CONNECTION_CONFIG.apiKey),
     apiKeyParam: Schema.string()
-      .description("Query parameter name used to send the API key.")
+      .description(
+        "Query parameter name used to send the API key.",
+      )
       .default(DEFAULT_CONNECTION_CONFIG.apiKeyParam),
     timeout: Schema.number()
-      .description("Request timeout in milliseconds.")
+      .description(
+        "Request timeout in milliseconds.",
+      )
       .min(1000)
       .default(DEFAULT_CONNECTION_CONFIG.timeout),
   })
@@ -183,7 +189,9 @@ export const Config = Schema.object({
       .description("Root command name.")
       .default(DEFAULT_COMMAND_CONFIG.name),
     authority: Schema.number()
-      .description("Minimum authority required to use portal commands.")
+      .description(
+        "Minimum authority required to use portal commands.",
+      )
       .min(0)
       .max(5)
       .default(DEFAULT_COMMAND_CONFIG.authority),
@@ -202,13 +210,17 @@ export const Config = Schema.object({
       )
       .default(DEFAULT_IMAGE_CONFIG.serverTitle),
     width: Schema.number()
-      .description("Generated image width in pixels.")
+      .description(
+        "Generated image width in pixels.",
+      )
       .min(640)
       .max(1600)
       .default(DEFAULT_IMAGE_CONFIG.width),
     backgroundTexture: createBackgroundTextureSchema(),
     showGeneratedAt: Schema.boolean()
-      .description("Show generated time in image outputs.")
+      .description(
+        "Show generated time in image outputs.",
+      )
       .default(DEFAULT_IMAGE_CONFIG.showGeneratedAt),
     puppeteer: Schema.boolean()
       .description(
@@ -298,9 +310,15 @@ export const Config = Schema.object({
       .description("How multiple latency testing services are selected.")
       .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackStrategy),
     latencyFallbackTrigger: Schema.union([
-      Schema.const("missing").description("Only when Minecraft status latency is missing"),
-      Schema.const("local").description("When latency is missing or looks local/useless"),
-      Schema.const("always").description("Always use testing services when possible"),
+      Schema.const("missing").description(
+        "Only when Minecraft status latency is missing",
+      ),
+      Schema.const("local").description(
+        "When latency is missing or looks local/useless",
+      ),
+      Schema.const("always").description(
+        "Always use testing services when possible",
+      ),
     ] as const)
       .description("When to use remote latency testing services.")
       .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackTrigger),
@@ -350,7 +368,9 @@ export const Config = Schema.object({
   debug: Schema.boolean()
     .description("Print verbose MCSManager discovery logs for debugging.")
     .default(false),
-}).description("MCSM Portal settings") as Schema<ConfigInput>;
+})
+  .description("MCSM Portal settings")
+  .i18n(CONFIG_LOCALES) as Schema<ConfigInput>;
 
 export function createRuntimeConfig(config: ConfigInput): Config {
   return {

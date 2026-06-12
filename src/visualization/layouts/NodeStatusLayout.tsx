@@ -13,8 +13,6 @@ import {
 import type { VisualizationLayoutProps } from "./types";
 
 export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
-  const online = data.nodes.filter((node) => node.online).length;
-
   return (
     <ImageShell
       className="mcsm-image--nodes p-8"
@@ -25,7 +23,7 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
           <ImageTitleBlock
             brand={data.portalName}
             title={data.nodeTitle}
-            subtitle={`${online}/${data.nodes.length} nodes online`}
+            subtitle={data.text.nodeOnlineSummary}
           />
           <ImageMetaOverlay
             copyright={data.copyright}
@@ -53,36 +51,46 @@ export function NodeStatusLayout({ layout, data }: VisualizationLayoutProps) {
                   </span>
                 </div>
                 <em className="border-2 border-white/20 bg-black/60 px-2.5 py-1 font-minecraft-five text-[10px] not-italic leading-none">
-                  {node.online ? "Online" : "Offline"}
+                  {node.online ? data.text.online : data.text.offline}
                 </em>
               </header>
               <div className="my-4 grid grid-cols-2 gap-2.5">
                 <Meter
-                  label="CPU"
-                  value={percent(node.cpuUsage)}
+                  label={data.text.cpu}
+                  value={percent(node.cpuUsage, data.text.unknown)}
                   progress={node.cpuUsage}
                   tone={usageTone(node.cpuUsage)}
                 />
                 <Meter
-                  label="Memory"
-                  value={bytesPair(node.memoryUsed, node.memoryTotal)}
+                  label={data.text.memory}
+                  value={bytesPair(
+                    node.memoryUsed,
+                    node.memoryTotal,
+                    data.text.unknown,
+                  )}
                   progress={memoryRatio(node.memoryUsed, node.memoryTotal)}
                   tone={usageTone(memoryRatio(node.memoryUsed, node.memoryTotal))}
                 />
               </div>
               <footer className="grid grid-cols-3 gap-2.5">
                 <Stat
-                  label="Instances"
+                  label={data.text.instances}
                   value={`${node.instanceRunning ?? 0}/${node.instanceTotal ?? 0}`}
                 />
-                <Stat label="Platform" value={node.platform ?? "unknown"} />
-                <Stat label="Version" value={node.version ?? "unknown"} />
+                <Stat
+                  label={data.text.platform}
+                  value={node.platform ?? data.text.unknown}
+                />
+                <Stat
+                  label={data.text.version}
+                  value={node.version ?? data.text.unknown}
+                />
               </footer>
             </div>
           ))
         ) : (
           <div className="grid min-h-[220px] place-items-center text-center font-minecraft text-[22px] opacity-75">
-            No nodes available
+            {data.text.noNodesAvailable}
           </div>
         )}
       </section>

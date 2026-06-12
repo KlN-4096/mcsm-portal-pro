@@ -13,6 +13,7 @@
 @font-face {
   font-family: "Minecraft Ten";
   src: url("../assets/fonts/minecraft-ten.ttf") format("truetype");
+  unicode-range: U+0000-00FF;
 }
 
 @font-face {
@@ -23,6 +24,13 @@
 @font-face {
   font-family: "Minecraft Five";
   src: url("../assets/fonts/minecraft-five-bold.otf") format("opentype");
+  unicode-range: U+0000-00FF;
+}
+
+@font-face {
+  font-family: "Vonwaon Bitmap 12px";
+  src: url("../assets/fonts/VONWAONBITMAP-12PX.TTF") format("truetype");
+  unicode-range: U+0100-10FFFF;
 }
 
 .mcsm-portal-preview-page {

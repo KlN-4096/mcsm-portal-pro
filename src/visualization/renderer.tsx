@@ -11,6 +11,11 @@ import {
   type Config,
 } from "../config";
 import type { MinecraftInstance, NodeStatus } from "../types";
+import {
+  createDefaultRenderText,
+  createVisualizationLayoutText,
+  type RenderText,
+} from "../render-text";
 import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition, withImageWidth } from "../visualization";
 import { PLUGIN_VERSION } from "../version";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
@@ -25,14 +30,22 @@ export interface VisualizationRenderResult {
   height: number;
 }
 
-export function renderNodeStatusVisualization(config: Config, nodes: NodeStatus[]) {
+export function renderNodeStatusVisualization(
+  config: Config,
+  nodes: NodeStatus[],
+  text: RenderText = createDefaultRenderText(config),
+) {
   const layout = getLayout("node-status", config.image.width);
-  return renderVisualization(layout, createVisualizationData(config, nodes, []));
+  return renderVisualization(layout, createVisualizationData(config, nodes, [], text));
 }
 
-export function renderServerListVisualization(config: Config, servers: MinecraftInstance[]) {
+export function renderServerListVisualization(
+  config: Config,
+  servers: MinecraftInstance[],
+  text: RenderText = createDefaultRenderText(config),
+) {
   const layout = getLayout("server-list", config.image.width);
-  return renderVisualization(layout, createVisualizationData(config, [], servers));
+  return renderVisualization(layout, createVisualizationData(config, [], servers, text));
 }
 
 export function renderVisualizationSvgDataUri(result: VisualizationRenderResult) {
@@ -145,6 +158,7 @@ export function createVisualizationData(
   config: Config,
   nodes: NodeStatus[],
   servers: MinecraftInstance[],
+  text: RenderText = createDefaultRenderText(config),
 ): VisualizationLayoutData {
   const backgroundTexture = resolveBackgroundTextureChoice(
     config.image.backgroundTexture,
@@ -159,6 +173,7 @@ export function createVisualizationData(
     generatedAt: config.image.showGeneratedAt ? new Date().toISOString() : undefined,
     backgroundTexture: backgroundTexture.name || undefined,
     backgroundTile: backgroundTexture.dataUri,
+    text: createVisualizationLayoutText(text, nodes, servers),
     nodes,
     servers,
   };
