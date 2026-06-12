@@ -40,6 +40,24 @@ export const CONFIG_LOCALES = {
       $desc: "可视化预览",
       enabled: "在 Koishi 控制台可用时注册代码生成的可视化预览页面。",
     },
+    qqInteractions: {
+      $desc: "QQ 交互",
+      reactionMirror: {
+        $desc: "QQ 表情跟贴",
+        enabled: "当用户给消息贴上指定 QQ 表情时，机器人也贴同一个表情。",
+        emojis:
+          "需要跟贴的 QQ 表情 ID。支持 Satori 格式（例如 1:123）或只填写表情 ID。",
+        dedupeTtl:
+          "同一消息同一表情的重复跟贴抑制时间，单位为毫秒。",
+        ignoreSelf: "忽略机器人自己添加的表情。",
+      },
+      avatarDoubleTap: {
+        $desc: "QQ 双击头像",
+        enabled:
+          "当用户对机器人触发双击头像（拍一拍）时，机器人也双击该用户头像。需要兼容 OneBot 的适配器暴露 notice/poke 事件和 send_poke 动作。",
+        cooldown: "对同一用户再次双击头像的最小间隔，单位为毫秒。",
+      },
+    },
     minecraft: {
       $desc: "Minecraft 实例发现",
       pageSize: "每次从每个 MCSManager 节点请求的实例数量。",

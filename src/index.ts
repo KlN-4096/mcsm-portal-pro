@@ -5,6 +5,7 @@ import { Config as ConfigSchema, createRuntimeConfig } from "./config";
 import type { ConfigInput as PluginConfig } from "./config";
 import { defineLocales } from "./locales";
 import { registerPreviewEntry } from "./preview";
+import { registerQQInteractions } from "./qq-interactions";
 
 export const name = "mcsm-portal";
 export const inject = {
@@ -34,4 +35,5 @@ export function apply(ctx: Context, config: Config) {
   );
   registerPreviewEntry(ctx, runtimeConfig, client);
   registerCommands(ctx, runtimeConfig, client);
+  registerQQInteractions(ctx, runtimeConfig);
 }

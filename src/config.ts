@@ -50,6 +50,23 @@ export interface PreviewConfig {
   enabled: boolean;
 }
 
+export interface ReactionMirrorConfig {
+  enabled: boolean;
+  emojis: string[];
+  dedupeTtl: number;
+  ignoreSelf: boolean;
+}
+
+export interface AvatarDoubleTapConfig {
+  enabled: boolean;
+  cooldown: number;
+}
+
+export interface QQInteractionsConfig {
+  reactionMirror: ReactionMirrorConfig;
+  avatarDoubleTap: AvatarDoubleTapConfig;
+}
+
 export interface LatencyFallbackServiceConfig {
   name: string;
   url: string;
@@ -72,6 +89,7 @@ export interface Config {
   image: ImageConfig;
   output: OutputConfig;
   preview: PreviewConfig;
+  qqInteractions: QQInteractionsConfig;
   minecraft: MinecraftConfig;
   fields: ServerFieldVisibility;
   cacheTtl: number;
@@ -117,6 +135,18 @@ const DEFAULT_OUTPUT_CONFIG: OutputConfig = {
 };
 const DEFAULT_PREVIEW_CONFIG: PreviewConfig = {
   enabled: false,
+};
+const DEFAULT_QQ_INTERACTIONS_CONFIG: QQInteractionsConfig = {
+  reactionMirror: {
+    enabled: false,
+    emojis: [],
+    dedupeTtl: 10000,
+    ignoreSelf: true,
+  },
+  avatarDoubleTap: {
+    enabled: false,
+    cooldown: 1000,
+  },
 };
 const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
   pageSize: 50,
@@ -273,6 +303,48 @@ export const Config = Schema.object({
   })
     .default(emptyObjectDefault<PreviewConfig>())
     .description("Visualization preview"),
+  qqInteractions: Schema.object({
+    reactionMirror: Schema.object({
+      enabled: Schema.boolean()
+        .description(
+          "Mirror configured QQ message reactions when users add them to a message.",
+        )
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.enabled),
+      emojis: Schema.array(Schema.string())
+        .description(
+          "QQ reaction emoji IDs to mirror. Supports Satori format such as 1:123, or a bare emoji ID.",
+        )
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.emojis),
+      dedupeTtl: Schema.number()
+        .description(
+          "Time in milliseconds to suppress repeated mirrored reactions on the same message and emoji.",
+        )
+        .min(0)
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.dedupeTtl),
+      ignoreSelf: Schema.boolean()
+        .description("Ignore reactions created by the bot itself.")
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.ignoreSelf),
+    })
+      .default(emptyObjectDefault<ReactionMirrorConfig>())
+      .description("QQ reaction mirroring"),
+    avatarDoubleTap: Schema.object({
+      enabled: Schema.boolean()
+        .description(
+          "Reply to QQ avatar double-tap notifications by double-tapping the user back. Requires a OneBot-compatible adapter that exposes notice/poke events and send_poke.",
+        )
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.avatarDoubleTap.enabled),
+      cooldown: Schema.number()
+        .description(
+          "Minimum interval in milliseconds before double-tapping the same user again.",
+        )
+        .min(0)
+        .default(DEFAULT_QQ_INTERACTIONS_CONFIG.avatarDoubleTap.cooldown),
+    })
+      .default(emptyObjectDefault<AvatarDoubleTapConfig>())
+      .description("QQ avatar double-tap"),
+  })
+    .default(emptyObjectDefault<QQInteractionsConfig>())
+    .description("QQ interactions"),
   minecraft: Schema.object({
     pageSize: Schema.number()
       .description(
@@ -414,6 +486,32 @@ export function createRuntimeConfig(config: ConfigInput): Config {
     },
     preview: {
       enabled: config.preview?.enabled ?? DEFAULT_PREVIEW_CONFIG.enabled,
+    },
+    qqInteractions: {
+      reactionMirror: {
+        enabled:
+          config.qqInteractions?.reactionMirror?.enabled ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.enabled,
+        emojis:
+          config.qqInteractions?.reactionMirror?.emojis
+            ?.map((emoji) => emoji.trim())
+            .filter(Boolean) ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.emojis,
+        dedupeTtl:
+          config.qqInteractions?.reactionMirror?.dedupeTtl ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.dedupeTtl,
+        ignoreSelf:
+          config.qqInteractions?.reactionMirror?.ignoreSelf ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.reactionMirror.ignoreSelf,
+      },
+      avatarDoubleTap: {
+        enabled:
+          config.qqInteractions?.avatarDoubleTap?.enabled ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.avatarDoubleTap.enabled,
+        cooldown:
+          config.qqInteractions?.avatarDoubleTap?.cooldown ??
+          DEFAULT_QQ_INTERACTIONS_CONFIG.avatarDoubleTap.cooldown,
+      },
     },
     minecraft: {
       pageSize: config.minecraft?.pageSize ?? DEFAULT_MINECRAFT_CONFIG.pageSize,
