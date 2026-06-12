@@ -69,7 +69,11 @@ export function createDefaultRenderText(config: Config): RenderText {
 export function renderNodeStatus(ctx: Context, config: Config, nodes: NodeStatus[], text: RenderText) {
   if (!nodes.length) return text.noNodes;
   if (config.output.mode === "image") {
-    return renderVisualizationImage(ctx, renderNodeStatusVisualization(config, nodes));
+    return renderVisualizationImage(
+      ctx,
+      config,
+      renderNodeStatusVisualization(config, nodes),
+    );
   }
   return renderNodeStatusText(config, nodes, text);
 }
@@ -77,7 +81,11 @@ export function renderNodeStatus(ctx: Context, config: Config, nodes: NodeStatus
 export function renderServerList(ctx: Context, config: Config, servers: MinecraftInstance[], text: RenderText) {
   if (!servers.length) return text.noServers;
   if (config.output.mode === "image") {
-    return renderVisualizationImage(ctx, renderServerListVisualization(config, servers));
+    return renderVisualizationImage(
+      ctx,
+      config,
+      renderServerListVisualization(config, servers),
+    );
   }
   return renderServerListText(config, servers, text);
 }

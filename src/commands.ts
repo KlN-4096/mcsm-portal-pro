@@ -58,6 +58,7 @@ async function checkConnection(session: Session, scope: string, client: MCSManag
 
 async function showNodeStatus(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
+    await sendAcknowledgement(session, scope, "status-loading");
     const nodes = await client.listNodes();
     return renderNodeStatus(ctx, config, nodes, createRenderText(session, scope, config));
   } catch (error) {
@@ -67,6 +68,7 @@ async function showNodeStatus(ctx: Context, session: Session, scope: string, con
 
 async function showMinecraftServers(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
+    await sendAcknowledgement(session, scope, "servers-loading");
     const servers = await client.listMinecraftInstances();
     return renderServerList(ctx, config, servers, createRenderText(session, scope, config));
   } catch (error) {
@@ -95,9 +97,18 @@ async function showServerAddress(session: Session, scope: string, client: MCSMan
   }
 }
 
-function refreshCache(session: Session, scope: string, client: MCSManagerClient) {
+async function refreshCache(session: Session, scope: string, client: MCSManagerClient) {
+  await sendAcknowledgement(session, scope, "refresh-loading");
   client.clearCache();
   return text(session, scope, "refresh-success");
+}
+
+function sendAcknowledgement(
+  session: Session,
+  scope: string,
+  key: string,
+) {
+  return session.send(text(session, scope, key));
 }
 
 function createRenderText(session: Session, scope: string, config: Config): RenderText {

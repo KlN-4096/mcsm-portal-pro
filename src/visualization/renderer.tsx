@@ -66,22 +66,26 @@ interface PuppeteerLike {
 
 export async function renderVisualizationImage(
   ctx: Context,
+  config: Config,
   result: VisualizationRenderResult,
 ) {
   const puppeteer = (ctx as Context & { puppeteer?: PuppeteerLike }).puppeteer;
-  if (!puppeteer) return h.image(renderVisualizationSvgDataUri(result));
+  if (!config.image.puppeteer || !puppeteer) {
+    return h.image(renderVisualizationSvgDataUri(result));
+  }
 
   const page = await puppeteer.page();
+  const renderScale = normalizeRenderScale(config.image.renderScale);
   try {
     await page.setViewport({
       width: result.width,
       height: result.height,
-      deviceScaleFactor: 1,
+      deviceScaleFactor: renderScale,
     });
     await page.setContent(createVisualizationHtml(result), {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
     });
-    await page.evaluate(() => document.fonts?.ready);
+    await page.evaluate(waitForPreviewAssets);
     const buffer = await page.screenshot({
       type: "png",
       clip: {
@@ -95,6 +99,28 @@ export async function renderVisualizationImage(
   } finally {
     await page.close();
   }
+}
+
+function normalizeRenderScale(value: number) {
+  return Number.isFinite(value) ? Math.min(4, Math.max(1, value)) : 1;
+}
+
+async function waitForPreviewAssets() {
+  const timeout = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+  await Promise.race([document.fonts?.ready ?? Promise.resolve(), timeout(1500)]);
+  await Promise.race([
+    Promise.all(
+      Array.from(document.images).map((image) => {
+        if (image.complete) return true;
+        return new Promise<boolean>((resolve) => {
+          image.onload = () => resolve(true);
+          image.onerror = () => resolve(false);
+        });
+      }),
+    ),
+    timeout(2500),
+  ]);
 }
 
 function createVisualizationHtml(result: VisualizationRenderResult) {

@@ -29,6 +29,8 @@ export interface ImageConfig {
   width: number;
   backgroundTexture: string;
   showGeneratedAt: boolean;
+  puppeteer: boolean;
+  renderScale: number;
 }
 
 export interface TextConfig {
@@ -99,6 +101,8 @@ const DEFAULT_IMAGE_CONFIG: ImageConfig = {
   width: 854,
   backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
   showGeneratedAt: true,
+  puppeteer: true,
+  renderScale: 2,
 };
 const DEFAULT_TEXT_CONFIG: TextConfig = {
   style: "detailed",
@@ -206,6 +210,19 @@ export const Config = Schema.object({
     showGeneratedAt: Schema.boolean()
       .description("Show generated time in image outputs.")
       .default(DEFAULT_IMAGE_CONFIG.showGeneratedAt),
+    puppeteer: Schema.boolean()
+      .description(
+        "Render image outputs with the optional Puppeteer service. This produces PNG images, avoids adapter issues with SVG data URIs, and enables render scaling for sharper output. Disable to force SVG output.",
+      )
+      .default(DEFAULT_IMAGE_CONFIG.puppeteer),
+    renderScale: Schema.number()
+      .description(
+        "Puppeteer PNG render scale. Higher values are sharper but produce larger images.",
+      )
+      .min(1)
+      .max(4)
+      .step(0.5)
+      .default(DEFAULT_IMAGE_CONFIG.renderScale),
   })
     .default(emptyObjectDefault<ImageConfig>())
     .description("Image settings"),
@@ -360,6 +377,9 @@ export function createRuntimeConfig(config: ConfigInput): Config {
         DEFAULT_IMAGE_CONFIG.backgroundTexture,
       showGeneratedAt:
         config.image?.showGeneratedAt ?? DEFAULT_IMAGE_CONFIG.showGeneratedAt,
+      puppeteer: config.image?.puppeteer ?? DEFAULT_IMAGE_CONFIG.puppeteer,
+      renderScale:
+        config.image?.renderScale ?? DEFAULT_IMAGE_CONFIG.renderScale,
     },
     output: {
       mode: config.output?.mode ?? DEFAULT_OUTPUT_CONFIG.mode,
