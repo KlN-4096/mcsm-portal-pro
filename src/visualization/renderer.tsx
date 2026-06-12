@@ -68,7 +68,7 @@ interface PuppeteerLike {
       deviceScaleFactor?: number;
     }): Promise<void>;
     setContent(content: string, options?: { waitUntil?: string }): Promise<void>;
-    evaluate<T>(callback: () => T | Promise<T>): Promise<T>;
+    evaluate<T>(callback: (() => T | Promise<T>) | string): Promise<T>;
     screenshot(options: {
       clip: { x: number; y: number; width: number; height: number };
       type?: "png";
@@ -98,7 +98,7 @@ export async function renderVisualizationImage(
     await page.setContent(createVisualizationHtml(result), {
       waitUntil: "domcontentloaded",
     });
-    await page.evaluate(waitForPreviewAssets);
+    await page.evaluate(WAIT_FOR_PREVIEW_ASSETS_SCRIPT);
     const buffer = await page.screenshot({
       type: "png",
       clip: {
@@ -118,23 +118,24 @@ function normalizeRenderScale(value: number) {
   return Number.isFinite(value) ? Math.min(4, Math.max(1, value)) : 1;
 }
 
-async function waitForPreviewAssets() {
-  const timeout = (ms: number) =>
-    new Promise<void>((resolve) => setTimeout(resolve, ms));
-  await Promise.race([document.fonts?.ready ?? Promise.resolve(), timeout(1500)]);
-  await Promise.race([
-    Promise.all(
-      Array.from(document.images).map((image) => {
+const WAIT_FOR_PREVIEW_ASSETS_SCRIPT = `(() => {
+  const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  return Promise.resolve()
+    .then(() => Promise.race([
+      document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+      timeout(1500),
+    ]))
+    .then(() => Promise.race([
+      Promise.all(Array.from(document.images).map((image) => {
         if (image.complete) return true;
-        return new Promise<boolean>((resolve) => {
+        return new Promise((resolve) => {
           image.onload = () => resolve(true);
           image.onerror = () => resolve(false);
         });
-      }),
-    ),
-    timeout(2500),
-  ]);
-}
+      })),
+      timeout(2500),
+    ]));
+})()`;
 
 function createVisualizationHtml(result: VisualizationRenderResult) {
   return [

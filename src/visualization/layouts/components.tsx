@@ -69,7 +69,7 @@ export function ImageMetaOverlay(props: {
 
 export function VersionTag(props: { version: string }) {
   return (
-    <small className="bg-white/15 px-1.2 py-0.8 font-minecraft text-[10px] leading-none text-white/85">
+    <small className="inline-block bg-white/15 px-[5px] py-[3px] font-minecraft text-[10px] leading-none text-white/85">
       v{props.version}
     </small>
   );
