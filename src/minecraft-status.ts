@@ -13,7 +13,7 @@ export interface MinecraftStatus {
 }
 
 export async function queryMinecraftStatus(address: string, timeout: number): Promise<MinecraftStatus> {
-  const target = parseAddress(address);
+  const target = parseMinecraftAddress(address);
   if (!target) throw new Error(`Invalid Minecraft server address: ${address}`);
 
   const startedAt = Date.now();
@@ -24,7 +24,7 @@ export async function queryMinecraftStatus(address: string, timeout: number): Pr
   };
 }
 
-function parseAddress(address: string) {
+export function parseMinecraftAddress(address: string) {
   const trimmed = address.trim();
   if (!trimmed) return;
 

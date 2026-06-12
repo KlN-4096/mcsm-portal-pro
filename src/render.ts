@@ -1,4 +1,4 @@
-import { h } from "koishi";
+import { h, type Context } from "koishi";
 import {
   resolveNodeImageTitle,
   resolveServerImageTitle,
@@ -8,6 +8,7 @@ import type { MinecraftInstance, NodeStatus, ServerFieldVisibility } from "./typ
 import {
   renderNodeStatusVisualization,
   renderServerListVisualization,
+  renderVisualizationImage,
   renderVisualizationSvgDataUri,
 } from "./visualization/renderer";
 import { resolveGameType } from "./minecraft-server";
@@ -65,18 +66,18 @@ export function createDefaultRenderText(config: Config): RenderText {
   };
 }
 
-export function renderNodeStatus(config: Config, nodes: NodeStatus[], text: RenderText) {
+export function renderNodeStatus(ctx: Context, config: Config, nodes: NodeStatus[], text: RenderText) {
   if (!nodes.length) return text.noNodes;
   if (config.output.mode === "image") {
-    return h.image(renderVisualizationSvgDataUri(renderNodeStatusVisualization(config, nodes)));
+    return renderVisualizationImage(ctx, renderNodeStatusVisualization(config, nodes));
   }
   return renderNodeStatusText(config, nodes, text);
 }
 
-export function renderServerList(config: Config, servers: MinecraftInstance[], text: RenderText) {
+export function renderServerList(ctx: Context, config: Config, servers: MinecraftInstance[], text: RenderText) {
   if (!servers.length) return text.noServers;
   if (config.output.mode === "image") {
-    return h.image(renderVisualizationSvgDataUri(renderServerListVisualization(config, servers)));
+    return renderVisualizationImage(ctx, renderServerListVisualization(config, servers));
   }
   return renderServerListText(config, servers, text);
 }

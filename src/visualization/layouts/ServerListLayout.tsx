@@ -3,8 +3,10 @@
 import {
   cn,
   createMinecraftTextStyle,
-  createImageStyle,
   FormattedText,
+  ImageShell,
+  ImageTitleBlock,
+  VersionTag,
   formatDate,
   formatPlayers,
   serverLatencyLabel,
@@ -19,35 +21,27 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
   ).length;
 
   return (
-    <article
-      className="mcsm-image-base box-border flex min-h-[480px] max-w-full flex-col gap-3.5 bg-black px-8 pb-5 pt-6 font-minecraft text-white"
-      style={createImageStyle(layout.previewWidth, data.backgroundTile)}
+    <ImageShell
+      className="flex flex-col gap-3.5 px-8 pb-5 pt-6"
+      width={layout.previewWidth}
+      backgroundTile={data.backgroundTile}
     >
-      <header className="grid justify-items-center gap-1 text-center">
-        <span className="font-minecraft-five text-sm">
-          <FormattedText text={data.portalName} />
-        </span>
-        <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
-          <FormattedText text={data.serverTitle} />
-        </h3>
-        <small className="font-minecraft text-base opacity-80">
-          {running}/{data.servers.length} servers online
-        </small>
+      <header className="flex items-start justify-center gap-5 text-center">
+        <ImageTitleBlock
+          brand={data.portalName}
+          title={data.serverTitle}
+          subtitle={`${running}/${data.servers.length} servers online`}
+          centered
+        />
       </header>
-
       <section className="grid flex-none gap-1 border-t-2 border-white/20 py-2">
         {data.servers.length ? (
           data.servers.map((server) => (
             <article
               key={server.id}
               className={cn(
-                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_156px] items-stretch gap-3 border-2 p-[6px_12px_6px_6px]",
-                {
-                  "border-white/30 bg-black/35": server.status === "running",
-                  "border-white/20 bg-transparent": isInactiveServer(server),
-                  "border-white/20 bg-black/40":
-                    server.status !== "running" && !isInactiveServer(server),
-                },
+                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_156px] items-stretch gap-3 border-2 p-[6px_12px_6px_6px] border-white/20",
+                server.status === "running" ? "bg-black/40" : "bg-transparent",
               )}
             >
               <div
@@ -108,7 +102,12 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                   </span>
                 </span>
                 <div className="grid h-6 min-w-0 content-between justify-items-end">
-                  <small className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-minecraft-five text-[7px] leading-none opacity-70">
+                  <small
+                    className={cn(
+                      "block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-minecraft-five text-[7px] leading-none",
+                      latencyTextClass(server),
+                    )}
+                  >
                     {serverLatencyLabel(server).toUpperCase()}
                   </small>
                   <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-monocraft text-sm leading-none tracking-[-0.04em]">
@@ -128,18 +127,20 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
         )}
       </section>
       <div className="min-h-0.5 flex-auto" />
-
       <footer className="border-t-2 border-black/30 mx-[-32px] mb-[-20px] mt-0 flex basis-[46px] items-end justify-between gap-4 bg-black/60 px-8 pb-3 pt-2.5">
-        <small className="font-minecraft text-sm">
-          <FormattedText text={data.copyright} />
-        </small>
+        <span className="flex items-center gap-2">
+          <small className="font-minecraft text-sm">
+            <FormattedText text={data.copyright} />
+          </small>
+          <VersionTag version={data.pluginVersion} />
+        </span>
         {data.generatedAt ? (
           <time className="m-0 text-right font-minecraft text-sm">
             {formatDate(data.generatedAt)}
           </time>
         ) : null}
       </footer>
-    </article>
+    </ImageShell>
   );
 }
 

@@ -9,7 +9,7 @@ import { registerPreviewEntry } from "./preview";
 export const name = "mcsm-portal";
 export const inject = {
   required: ["http"],
-  optional: ["console"],
+  optional: ["console", "puppeteer"],
 };
 
 export interface Config extends PluginConfig {}

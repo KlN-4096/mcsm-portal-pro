@@ -5,9 +5,11 @@ import {
   RANDOM_BACKGROUND_TEXTURE,
 } from "./visualization/styles";
 
-type RecursivePartial<T> = {
-  [K in keyof T]?: T[K] extends object ? RecursivePartial<T[K]> : T[K];
-};
+type RecursivePartial<T> = T extends Array<infer U>
+  ? RecursivePartial<U>[]
+  : T extends object
+    ? { [K in keyof T]?: RecursivePartial<T[K]> }
+    : T;
 
 export interface ConnectionConfig {
   endpoint: string;
@@ -44,9 +46,19 @@ export interface PreviewConfig {
   enabled: boolean;
 }
 
+export interface LatencyFallbackServiceConfig {
+  name: string;
+  url: string;
+}
+
 export interface MinecraftConfig {
   pageSize: number;
   typeKeywords: string[];
+  latencyFallback: LatencyFallbackServiceConfig[];
+  latencyFallbackStrategy: "random" | "fallback" | "average";
+  latencyFallbackTrigger: "missing" | "local" | "always";
+  latencyFallbackLocalThreshold: number;
+  latencyFallbackKeys: string[];
 }
 
 export interface Config {
@@ -103,6 +115,30 @@ const DEFAULT_PREVIEW_CONFIG: PreviewConfig = {
 const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
   pageSize: 50,
   typeKeywords: ["minecraft"],
+  latencyFallback: [],
+  latencyFallbackStrategy: "fallback",
+  latencyFallbackTrigger: "local",
+  latencyFallbackLocalThreshold: 10,
+  latencyFallbackKeys: [
+    "latencyMs",
+    "latency",
+    "pingMs",
+    "ping",
+    "delay",
+    "ms",
+    "data.latencyMs",
+    "data.latency",
+    "data.pingMs",
+    "data.ping",
+    "data.delay",
+    "data.ms",
+    "result.latencyMs",
+    "result.latency",
+    "result.pingMs",
+    "result.ping",
+    "result.delay",
+    "result.ms",
+  ],
 };
 const DEFAULT_FIELDS_CONFIG: ServerFieldVisibility = {
   address: true,
@@ -219,6 +255,49 @@ export const Config = Schema.object({
     typeKeywords: Schema.array(Schema.string())
       .description("Instance type keywords treated as Minecraft servers.")
       .default(DEFAULT_MINECRAFT_CONFIG.typeKeywords),
+    latencyFallback: Schema.array(
+      Schema.object({
+        name: Schema.string()
+          .description("Display name for this latency testing service.")
+          .default(""),
+        url: Schema.string()
+          .description(
+            "Latency testing service URL template. Supports {address}, {host}, and {port}.",
+          )
+          .default(""),
+      }),
+    )
+      .description("Remote latency testing services.")
+      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallback),
+    latencyFallbackStrategy: Schema.union([
+      Schema.const("fallback").description(
+        "Use services in order; try the next one if one fails or times out",
+      ),
+      Schema.const("random").description("Pick one service randomly"),
+      Schema.const("average").description(
+        "Query all services and average successful non-timeout results",
+      ),
+    ] as const)
+      .description("How multiple latency testing services are selected.")
+      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackStrategy),
+    latencyFallbackTrigger: Schema.union([
+      Schema.const("missing").description("Only when Minecraft status latency is missing"),
+      Schema.const("local").description("When latency is missing or looks local/useless"),
+      Schema.const("always").description("Always use testing services when possible"),
+    ] as const)
+      .description("When to use remote latency testing services.")
+      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackTrigger),
+    latencyFallbackLocalThreshold: Schema.number()
+      .description(
+        "Latency at or below this value, in milliseconds, is treated as local/useless.",
+      )
+      .min(0)
+      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackLocalThreshold),
+    latencyFallbackKeys: Schema.array(Schema.string())
+      .description(
+        "Response key paths used to read latency from service JSON. Dot paths are supported, for example data.ping.",
+      )
+      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackKeys),
   })
     .default(emptyObjectDefault<MinecraftConfig>())
     .description("Minecraft instance discovery"),
@@ -300,6 +379,37 @@ export function createRuntimeConfig(config: ConfigInput): Config {
       pageSize: config.minecraft?.pageSize ?? DEFAULT_MINECRAFT_CONFIG.pageSize,
       typeKeywords:
         config.minecraft?.typeKeywords ?? DEFAULT_MINECRAFT_CONFIG.typeKeywords,
+      latencyFallback: normalizeLatencyFallbackServices(
+        config.minecraft?.latencyFallback,
+      ),
+      latencyFallbackStrategy:
+        config.minecraft?.latencyFallbackStrategy ??
+        readLegacyLatencyFallbackValue(
+          config.minecraft?.latencyFallback,
+          "strategy",
+          DEFAULT_MINECRAFT_CONFIG.latencyFallbackStrategy,
+        ),
+      latencyFallbackTrigger:
+        config.minecraft?.latencyFallbackTrigger ??
+        readLegacyLatencyFallbackValue(
+          config.minecraft?.latencyFallback,
+          "trigger",
+          DEFAULT_MINECRAFT_CONFIG.latencyFallbackTrigger,
+        ),
+      latencyFallbackLocalThreshold:
+        config.minecraft?.latencyFallbackLocalThreshold ??
+        readLegacyLatencyFallbackValue(
+          config.minecraft?.latencyFallback,
+          "localThreshold",
+          DEFAULT_MINECRAFT_CONFIG.latencyFallbackLocalThreshold,
+        ),
+      latencyFallbackKeys:
+        config.minecraft?.latencyFallbackKeys ??
+        readLegacyLatencyFallbackValue(
+          config.minecraft?.latencyFallback,
+          "keys",
+          DEFAULT_MINECRAFT_CONFIG.latencyFallbackKeys,
+        ),
     },
     fields: {
       address: config.fields?.address ?? DEFAULT_FIELDS_CONFIG.address,
@@ -314,6 +424,54 @@ export function createRuntimeConfig(config: ConfigInput): Config {
     cacheTtl: config.cacheTtl ?? 30,
     debug: config.debug ?? false,
   };
+}
+
+function normalizeLatencyFallbackServices(
+  value: ConfigInput["minecraft"] extends infer M
+    ? M extends { latencyFallback?: infer L }
+      ? L
+      : never
+    : never,
+): LatencyFallbackServiceConfig[] {
+  if (Array.isArray(value)) {
+    return value.map(normalizeLatencyFallbackService);
+  }
+
+  const legacy = readRecord(value);
+  const url = readString(legacy, "url");
+  if (url === undefined) return DEFAULT_MINECRAFT_CONFIG.latencyFallback;
+  return [{ name: "", url }];
+}
+
+function normalizeLatencyFallbackService(
+  service: RecursivePartial<LatencyFallbackServiceConfig>,
+): LatencyFallbackServiceConfig {
+  return {
+    name: service.name ?? "",
+    url: service.url ?? "",
+  };
+}
+
+function readLegacyLatencyFallbackValue<T>(
+  value: unknown,
+  key: string,
+  fallback: T,
+): T {
+  const record = readRecord(value);
+  if (!record || !(key in record)) return fallback;
+  const legacyValue = record[key];
+  return legacyValue === undefined ? fallback : (legacyValue as T);
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function readString(record: Record<string, unknown> | undefined, key: string) {
+  const value = record?.[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 export function resolvePortalTitle(config?: Pick<Config, "title">) {

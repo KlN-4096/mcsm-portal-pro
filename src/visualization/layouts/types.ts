@@ -4,6 +4,7 @@ import type { CodeAuthoredLayoutDefinition } from "../../visualization";
 export interface VisualizationLayoutData {
   portalName: string;
   copyright: string;
+  pluginVersion: string;
   nodeTitle: string;
   serverTitle: string;
   showGeneratedAt: boolean;

@@ -1,5 +1,6 @@
 /** @jsxImportSource react */
 
+import { h, type Context } from "koishi";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -11,6 +12,7 @@ import {
 } from "../config";
 import type { MinecraftInstance, NodeStatus } from "../types";
 import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition, withImageWidth } from "../visualization";
+import { PLUGIN_VERSION } from "../version";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
 import { createVisualizationCss } from "./styles";
 import { resolveBackgroundTextureChoice } from "./styles";
@@ -45,6 +47,74 @@ export function renderVisualizationSvgDataUri(result: VisualizationRenderResult)
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+interface PuppeteerLike {
+  page(): Promise<{
+    setViewport(options: {
+      width: number;
+      height: number;
+      deviceScaleFactor?: number;
+    }): Promise<void>;
+    setContent(content: string, options?: { waitUntil?: string }): Promise<void>;
+    evaluate<T>(callback: () => T | Promise<T>): Promise<T>;
+    screenshot(options: {
+      clip: { x: number; y: number; width: number; height: number };
+      type?: "png";
+    }): Promise<Buffer>;
+    close(): Promise<void>;
+  }>;
+}
+
+export async function renderVisualizationImage(
+  ctx: Context,
+  result: VisualizationRenderResult,
+) {
+  const puppeteer = (ctx as Context & { puppeteer?: PuppeteerLike }).puppeteer;
+  if (!puppeteer) return h.image(renderVisualizationSvgDataUri(result));
+
+  const page = await puppeteer.page();
+  try {
+    await page.setViewport({
+      width: result.width,
+      height: result.height,
+      deviceScaleFactor: 1,
+    });
+    await page.setContent(createVisualizationHtml(result), {
+      waitUntil: "networkidle0",
+    });
+    await page.evaluate(() => document.fonts?.ready);
+    const buffer = await page.screenshot({
+      type: "png",
+      clip: {
+        x: 0,
+        y: 0,
+        width: result.width,
+        height: result.height,
+      },
+    });
+    return h.image(buffer, "image/png");
+  } finally {
+    await page.close();
+  }
+}
+
+function createVisualizationHtml(result: VisualizationRenderResult) {
+  return [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    "<meta charset=\"utf-8\">",
+    "<style>",
+    "html,body{margin:0;padding:0;background:transparent;}",
+    createVisualizationCss(),
+    "</style>",
+    "</head>",
+    "<body>",
+    result.html,
+    "</body>",
+    "</html>",
+  ].join("");
+}
+
 export function createVisualizationData(
   config: Config,
   nodes: NodeStatus[],
@@ -56,6 +126,7 @@ export function createVisualizationData(
   return {
     portalName: resolvePortalTitle(config),
     copyright: DEFAULT_COPYRIGHT_TEXT,
+    pluginVersion: PLUGIN_VERSION,
     nodeTitle: resolveNodeImageTitle(config),
     serverTitle: resolveServerImageTitle(config),
     showGeneratedAt: config.image.showGeneratedAt,

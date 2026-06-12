@@ -11,6 +11,7 @@ import {
 } from "./config";
 import type { MCSManagerClient } from "./client";
 import { resolveBackgroundTextureChoice } from "./visualization/styles";
+import { PLUGIN_VERSION } from "./version";
 
 export type VisualizationSurface = "node-status" | "server-list";
 
@@ -28,6 +29,7 @@ export interface CodeAuthoredLayoutDefinition {
 export interface VisualizationMockData {
   portalName: string;
   copyright: string;
+  pluginVersion: string;
   nodeTitle: string;
   serverTitle: string;
   showGeneratedAt: boolean;
@@ -137,7 +139,12 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         onlinePlayers: 18,
         maxPlayers: 64,
         version: "1.20.1",
-        motd: "Vanilla survival with land claims",
+        motd: "§aVanilla Survival §7- §fLand claims enabled",
+        motdSegments: [
+          { text: "Vanilla Survival", color: "#55ff55", bold: true },
+          { text: " - ", color: "#aaaaaa" },
+          { text: "Land claims enabled", color: "#ffffff" },
+        ],
         modList: ["Fabric", "Lithium", "Ledger"],
       },
       {
@@ -153,7 +160,12 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         onlinePlayers: 7,
         maxPlayers: 40,
         version: "1.20.4",
-        motd: "Build showcase and plot worlds",
+        motd: "§bCreative Plots §7| §eShowcase builds welcome",
+        motdSegments: [
+          { text: "Creative Plots", color: "#55ffff", bold: true },
+          { text: " | ", color: "#aaaaaa" },
+          { text: "Showcase builds welcome", color: "#ffff55" },
+        ],
         modList: [],
       },
       {
@@ -169,7 +181,16 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         onlinePlayers: 0,
         maxPlayers: 20,
         version: "1.19.2",
-        motd: "Forge adventure pack",
+        motd: "§6Forge Adventure §7- §dMagic, tech, exploration",
+        motdSegments: [
+          { text: "Forge Adventure", color: "#ffaa00", bold: true },
+          { text: " - ", color: "#aaaaaa" },
+          { text: "Magic", color: "#ff55ff" },
+          { text: ", ", color: "#aaaaaa" },
+          { text: "tech", color: "#55ffff" },
+          { text: ", ", color: "#aaaaaa" },
+          { text: "exploration", color: "#55ff55" },
+        ],
         modList: ["Create", "Botania", "Twilight Forest"],
       },
     ],
@@ -184,6 +205,7 @@ function createVisualizationDataBase(config?: Config) {
   return {
     portalName: config ? resolvePortalTitle(config) : PORTAL_IMAGE_BRAND,
     copyright: DEFAULT_COPYRIGHT_TEXT,
+    pluginVersion: PLUGIN_VERSION,
     nodeTitle: config ? resolveNodeImageTitle(config) : DEFAULT_NODE_IMAGE_TITLE,
     serverTitle: config ? resolveServerImageTitle(config) : DEFAULT_SERVER_IMAGE_TITLE,
     showGeneratedAt,

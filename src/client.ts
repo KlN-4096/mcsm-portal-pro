@@ -1,6 +1,10 @@
 import type { Context } from "koishi";
-import type { ConnectionConfig, MinecraftConfig } from "./config";
-import { queryMinecraftStatus } from "./minecraft-status";
+import type {
+  ConnectionConfig,
+  LatencyFallbackServiceConfig,
+  MinecraftConfig,
+} from "./config";
+import { parseMinecraftAddress, queryMinecraftStatus } from "./minecraft-status";
 import type {
   InstanceStatus,
   MCSManagerResponse,
@@ -238,11 +242,12 @@ export class MCSManagerClient {
 
       try {
         const status = await queryMinecraftStatus(instance.address, timeout);
+        const latencyMs = await this.resolveLatency(instance, status.latencyMs, timeout);
         return {
           ...instance,
           onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: status.maxPlayers ?? instance.maxPlayers,
-          latencyMs: status.latencyMs ?? instance.latencyMs,
+          latencyMs: latencyMs ?? status.latencyMs ?? instance.latencyMs,
           version: status.version ?? instance.version,
           motd: status.motd ?? instance.motd,
           motdSegments: status.motdSegments ?? instance.motdSegments,
@@ -258,6 +263,113 @@ export class MCSManagerClient {
         return instance;
       }
     });
+  }
+
+  private async resolveLatency(
+    instance: MinecraftInstance,
+    statusLatencyMs: number | undefined,
+    timeout: number,
+  ) {
+    const services = this.minecraft.latencyFallback.filter((service) =>
+      service.url.trim(),
+    );
+    if (services.length === 0) return statusLatencyMs;
+    if (!shouldUseLatencyFallback(statusLatencyMs, this.minecraft)) {
+      return statusLatencyMs;
+    }
+
+    try {
+      const latencyMs = await this.queryLatencyTestingServices(
+        services,
+        instance.address!,
+        timeout,
+      );
+      this.debug("latency testing service result", {
+        id: instance.id,
+        name: instance.name,
+        address: instance.address,
+        strategy: this.minecraft.latencyFallbackStrategy,
+        statusLatencyMs,
+        latencyMs,
+      });
+      return latencyMs;
+    } catch (error) {
+      this.debug("latency testing service failed", {
+        id: instance.id,
+        name: instance.name,
+        address: instance.address,
+        statusLatencyMs,
+        message: formatErrorMessage(error),
+      });
+      return statusLatencyMs;
+    }
+  }
+
+  private async queryLatencyTestingServices(
+    services: LatencyFallbackServiceConfig[],
+    address: string,
+    timeout: number,
+  ) {
+    switch (this.minecraft.latencyFallbackStrategy) {
+      case "random": {
+        const service = pickRandom(services);
+        return this.queryLatencyTestingService(service, address, timeout);
+      }
+      case "average": {
+        const results = await Promise.all(
+          services.map((service) =>
+            this.queryLatencyTestingService(service, address, timeout).catch(
+              () => undefined,
+            ),
+          ),
+        );
+        const latencies = results.filter(
+          (latencyMs): latencyMs is number => latencyMs !== undefined,
+        );
+        if (latencies.length === 0) {
+          throw new Error("All latency testing services failed.");
+        }
+        return Math.round(
+          latencies.reduce((sum, latencyMs) => sum + latencyMs, 0) /
+            latencies.length,
+        );
+      }
+      case "fallback":
+      default: {
+        let lastError: unknown;
+        for (const service of services) {
+          try {
+            return await this.queryLatencyTestingService(
+              service,
+              address,
+              timeout,
+            );
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError ?? new Error("All latency testing services failed.");
+      }
+    }
+  }
+
+  private async queryLatencyTestingService(
+    service: LatencyFallbackServiceConfig,
+    address: string,
+    timeout: number,
+  ) {
+    const url = createLatencyTestingServiceUrl(service.url, address);
+    const response = await this.ctx.http.get<unknown>(url, { timeout });
+    const latencyMs = readLatencyValue(
+      response,
+      this.minecraft.latencyFallbackKeys,
+    );
+    if (latencyMs === undefined) {
+      throw new Error(
+        "Latency testing service response did not contain a numeric latency field.",
+      );
+    }
+    return latencyMs;
   }
 
   private readCache<T>(entry?: CacheEntry<T>) {
@@ -296,6 +408,73 @@ export class MCSManagerClient {
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
+}
+
+function shouldUseLatencyFallback(
+  latencyMs: number | undefined,
+  minecraft: MinecraftConfig,
+) {
+  if (minecraft.latencyFallbackTrigger === "always") return true;
+  if (latencyMs === undefined) return true;
+  return (
+    minecraft.latencyFallbackTrigger === "local" &&
+    latencyMs <= minecraft.latencyFallbackLocalThreshold
+  );
+}
+
+function createLatencyTestingServiceUrl(template: string, address: string) {
+  const target = parseMinecraftAddress(address);
+  if (!target) throw new Error(`Invalid Minecraft server address: ${address}`);
+
+  const replacements: Record<string, string> = {
+    address,
+    host: target.host,
+    port: String(target.port),
+  };
+  return template.replace(/\{(address|host|port)\}/g, (_, key: string) =>
+    encodeURIComponent(replacements[key]),
+  );
+}
+
+function readLatencyValue(
+  value: unknown,
+  keys: readonly string[],
+): number | undefined {
+  const direct = normalizeLatencyNumber(value);
+  if (direct !== undefined) return direct;
+
+  for (const key of keys) {
+    const path = key.split(".").filter(Boolean);
+    if (path.length === 0) continue;
+    const nested = readNestedValue(value, path);
+    const latencyMs = normalizeLatencyNumber(nested);
+    if (latencyMs !== undefined) return latencyMs;
+  }
+}
+
+function pickRandom<T>(values: readonly T[]) {
+  return values[Math.floor(Math.random() * values.length)];
+}
+
+function readNestedValue(value: unknown, path: string[]) {
+  let current = value;
+  for (const key of path) {
+    const record = toRecord(current);
+    if (!record) return;
+    current = record[key];
+  }
+  return current;
+}
+
+function normalizeLatencyNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.round(value);
+  }
+  if (typeof value !== "string") return;
+  const match = value.match(/\d+(?:\.\d+)?/);
+  if (!match) return;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined;
 }
 
 function unwrapResponse<T>(response: MCSManagerResponse<T> | T) {
@@ -350,41 +529,158 @@ function formatErrorMessage(error: unknown) {
 
 function normalizeNodes(remoteServicesPayload: unknown, remoteSystemsPayload: unknown): NodeStatus[] {
   const services = toArray(remoteServicesPayload).map(toRecord).filter(isRecord);
-  const systems = new Map(
-    toArray(remoteSystemsPayload)
-      .map(toRecord)
-      .filter(isRecord)
-      .map((system) => [readString(system, "uuid") ?? readString(system, "id"), system] as const)
-      .filter((entry): entry is readonly [string, Record<string, unknown>] => Boolean(entry[0])),
+  const systemRows = toArray(remoteSystemsPayload).map(toRecord).filter(isRecord);
+  const systemsById = new Map(
+    systemRows
+      .map((row) => [readNodeId(row), row] as const)
+      .filter((entry): entry is readonly [string, Record<string, unknown>] =>
+        Boolean(entry[0]),
+      ),
   );
+  let onlineSystemIndex = 0;
 
   return services.map((service) => {
-    const id = readString(service, "uuid") ?? readString(service, "id") ?? "";
-    const systemInfo = systems.get(id);
+    const id = readNodeId(service) ?? "";
+    const available = readBoolean(service, "available");
+    const systemInfo = systemsById.get(id) ?? (
+      systemsById.size === 0 && available !== false
+        ? systemRows[onlineSystemIndex++]
+        : undefined
+    );
     const system = toRecord(systemInfo?.system);
     const instance = toRecord(systemInfo?.instance);
-    const totalMemory = readNumber(system, "totalmem") ?? readNumber(system, "totalMemory") ?? readNumber(system, "memTotal");
+    const memoryUsage = normalizeRatio(
+      readNumber(system, "memUsage") ?? readNumber(system, "memoryUsage"),
+    );
     const freeMemory = readNumber(system, "freemem") ?? readNumber(system, "freeMemory") ?? readNumber(system, "memFree");
+    const totalMemory = readNumber(system, "totalmem") ?? readNumber(system, "totalMemory") ?? readNumber(system, "memTotal");
+    const memoryUsed = totalMemory !== undefined
+      ? memoryUsage !== undefined
+        ? totalMemory * memoryUsage
+        : freeMemory !== undefined
+          ? totalMemory - freeMemory
+          : undefined
+      : undefined;
+    const instanceTotal = readNumber(instance, "total");
+    const instanceRunning = readNumber(instance, "running");
+    const diskUsage = readDiskUsage(system);
 
     return {
       id,
       name: readString(service, "remarks") ?? readString(service, "name") ?? id,
-      online: readBoolean(service, "available") ?? Boolean(systemInfo),
+      online: available ?? Boolean(systemInfo),
       address: formatAddress(readString(service, "ip"), readNumber(service, "port")),
-      cpuUsage: readNumber(system, "cpu") ?? readNumber(system, "cpuUsage"),
-      memoryUsed: totalMemory !== undefined && freeMemory !== undefined ? totalMemory - freeMemory : undefined,
+      cpuUsage: normalizeRatio(
+        readNumber(system, "cpuUsage") ?? readNumber(system, "cpu"),
+      ),
+      memoryUsed,
       memoryTotal: totalMemory,
-      diskUsed: readNumber(system, "diskUsed"),
-      diskTotal: readNumber(system, "diskTotal"),
-      instanceTotal: readNumber(instance, "total"),
-      instanceRunning: readNumber(instance, "running"),
-      instanceStopped: readNumber(instance, "stopped"),
-      platform: readString(system, "platform") ?? readString(system, "type"),
+      diskUsed: diskUsage.used,
+      diskTotal: diskUsage.total,
+      instanceTotal,
+      instanceRunning,
+      instanceStopped:
+        readNumber(instance, "stopped") ??
+        (instanceTotal !== undefined && instanceRunning !== undefined
+          ? Math.max(0, instanceTotal - instanceRunning)
+          : undefined),
+      platform:
+        readString(system, "platform") ??
+        readString(system, "type") ??
+        readString(system, "release"),
       uptime: readNumber(system, "uptime"),
-      version: readString(system, "version"),
+      version:
+        readString(systemInfo, "version") ??
+        readString(system, "version") ??
+        readString(system, "release"),
       remark: readString(service, "remarks"),
     };
   });
+}
+
+function readNodeId(record: Record<string, unknown> | undefined) {
+  return readString(record, "uuid") ??
+    readString(record, "id") ??
+    readString(record, "daemonId") ??
+    readString(record, "remoteUuid");
+}
+
+function normalizeRatio(value: number | undefined) {
+  if (value === undefined) return;
+  return value > 1 ? value / 100 : value;
+}
+
+function readDiskUsage(system: Record<string, unknown> | undefined) {
+  const direct = readSingleDiskUsage(system);
+  if (direct.total !== undefined || direct.used !== undefined) return direct;
+
+  for (const key of ["disk", "storage", "filesystem"] as const) {
+    const nested = readSingleDiskUsage(toRecord(system?.[key]));
+    if (nested.total !== undefined || nested.used !== undefined) return nested;
+  }
+
+  const disks = [
+    ...toArray(system?.disks),
+    ...toArray(system?.diskList),
+    ...toArray(system?.fsSize),
+    ...toArray(system?.filesystems),
+  ].map(toRecord).filter(isRecord).map(readSingleDiskUsage);
+  const total = sumDefined(disks.map((disk) => disk.total));
+  const used = sumDefined(disks.map((disk) => disk.used));
+  return { used, total };
+}
+
+function readSingleDiskUsage(record: Record<string, unknown> | undefined) {
+  const total = readFirstNumber(record, [
+    "diskTotal",
+    "totalDisk",
+    "storageTotal",
+    "totalStorage",
+    "size",
+    "total",
+  ]);
+  const free = readFirstNumber(record, [
+    "diskFree",
+    "freeDisk",
+    "storageFree",
+    "freeStorage",
+    "available",
+    "avail",
+    "free",
+  ]);
+  const usage = normalizeRatio(
+    readFirstNumber(record, ["diskUsage", "storageUsage", "usage", "use"]),
+  );
+  const used =
+    readFirstNumber(record, [
+      "diskUsed",
+      "usedDisk",
+      "storageUsed",
+      "usedStorage",
+      "used",
+    ]) ??
+    (total !== undefined && free !== undefined
+      ? total - free
+      : total !== undefined && usage !== undefined
+        ? total * usage
+        : undefined);
+  return { used, total };
+}
+
+function readFirstNumber(
+  record: Record<string, unknown> | undefined,
+  keys: readonly string[],
+) {
+  for (const key of keys) {
+    const value = readNumber(record, key);
+    if (value !== undefined) return value;
+  }
+}
+
+function sumDefined(values: readonly (number | undefined)[]) {
+  const numbers = values.filter((value): value is number => value !== undefined);
+  if (numbers.length === 0) return;
+  return numbers.reduce((sum, value) => sum + value, 0);
 }
 
 function normalizeInstancePage(payload: unknown, node: NodeStatus, publicHost?: string) {

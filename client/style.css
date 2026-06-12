@@ -71,7 +71,10 @@ html.dark .mcsm-portal-preview-page {
 
 .mcsm-portal-preview-workbench {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, max-content);
+  grid-template-columns: minmax(260px, 320px) minmax(
+      0,
+      calc(var(--mcsm-preview-width) + 54px)
+    );
   gap: 16px;
   align-items: start;
   justify-content: center;
@@ -89,8 +92,8 @@ html.dark .mcsm-portal-preview-page {
 .mcsm-portal-preview-column {
   display: grid;
   gap: 16px;
-  width: min(100%, calc(var(--mcsm-preview-width) + 54px));
-  max-width: calc(100vw - var(--activity-width) - 2 * var(--card-margin) - 336px);
+  width: 100%;
+  max-width: calc(var(--mcsm-preview-width) + 54px);
 }
 
 .mcsm-portal-preview-column > .mcsm-portal-panel {
@@ -262,6 +265,8 @@ html.dark .mcsm-portal-preview-page {
 }
 
 .mcsm-portal-stage {
+  display: grid;
+  justify-items: center;
   overflow: visible;
   padding: 0;
   background: transparent;
@@ -300,6 +305,7 @@ html.dark .mcsm-portal-preview-page {
 }
 
 .mcsm-react-frame {
+  justify-self: center;
   margin-inline: auto;
   overflow: visible;
 }
@@ -311,7 +317,11 @@ html.dark .mcsm-portal-preview-page {
 
 .mcsm-react-host {
   display: block;
-  width: max-content;
+  width: var(--mcsm-preview-width);
+}
+
+.mcsm-react-host > .mcsm-image-base {
+  width: 100% !important;
 }
 
 .mcsm-portal-summary-grid {

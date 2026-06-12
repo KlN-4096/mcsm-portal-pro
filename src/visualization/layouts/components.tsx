@@ -5,45 +5,73 @@ import type { CSSProperties, ReactNode } from "react";
 import { parseMinecraftText } from "../../minecraft-text";
 
 export function ImageShell(props: {
-  className: string;
+  className?: string;
   width: number;
-  brand: string;
-  copyright: string;
-  title: string;
-  subtitle: string;
-  generatedAt?: string;
   backgroundTile?: string;
   children: ReactNode;
 }) {
   return (
     <article
       className={cn(
-        "mcsm-image-base box-border min-h-[480px] max-w-full bg-black p-8 font-minecraft text-white",
+        "mcsm-image-base box-border min-h-[480px] max-w-full bg-black font-minecraft text-white",
         props.className,
       )}
       style={createImageStyle(props.width, props.backgroundTile)}
     >
-      <header className="mb-4 flex items-start justify-between gap-5">
-        <div>
-          <p className="m-0 mb-2 font-minecraft-five text-sm">
-            <FormattedText text={props.brand} />
-          </p>
-          <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
-            <FormattedText text={props.title} />
-          </h3>
-          <span className="opacity-75">{props.subtitle}</span>
-        </div>
-        <div className="grid justify-items-end gap-0.5 text-right opacity-75">
-          {props.generatedAt ? (
-            <time>{formatDate(props.generatedAt)}</time>
-          ) : null}
-          <small className="font-minecraft text-xs opacity-75">
-            <FormattedText text={props.copyright} />
-          </small>
-        </div>
-      </header>
       {props.children}
     </article>
+  );
+}
+
+export function ImageTitleBlock(props: {
+  brand?: string;
+  title?: string;
+  subtitle?: string;
+  centered?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col",
+        props.centered ? "items-center" : "items-start",
+      )}
+    >
+      <p className={cn("m-0 font-minecraft-five text-sm mb-2")}>
+        <FormattedText text={props.brand ?? ""} />
+      </p>
+      <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
+        <FormattedText text={props.title ?? ""} />
+      </h3>
+      <span className="font-minecraft text-base opacity-80">
+        {props.subtitle}
+      </span>
+    </div>
+  );
+}
+
+export function ImageMetaOverlay(props: {
+  copyright: string;
+  pluginVersion: string;
+  generatedAt?: string;
+}) {
+  return (
+    <div className="grid justify-items-end gap-0.5 text-right opacity-75">
+      {props.generatedAt ? <time>{formatDate(props.generatedAt)}</time> : null}
+      <span className="flex items-center justify-end gap-1.5">
+        <VersionTag version={props.pluginVersion} />
+        <small className="font-minecraft text-xs">
+          <FormattedText text={props.copyright} />
+        </small>
+      </span>
+    </div>
+  );
+}
+
+export function VersionTag(props: { version: string }) {
+  return (
+    <small className="bg-white/15 px-1.2 py-0.8 font-minecraft text-[10px] leading-none text-white/85">
+      v{props.version}
+    </small>
   );
 }
 
@@ -98,13 +126,90 @@ export function Stat(props: { label: string; value: string }) {
   );
 }
 
-export function Meter(props: { label: string; value: string }) {
+export function Meter(props: {
+  label: string;
+  value: string;
+  progress?: number;
+  tone?: "success" | "warning" | "danger";
+}) {
+  const progress = normalizeProgress(props.progress);
+  const visualProgress =
+    progress === undefined ? undefined : normalizeVisualProgress(progress);
   return (
-    <div className="grid gap-1 border-2 border-white/20 bg-black/30 p-2">
-      <span className="opacity-75">{props.label}</span>
-      <strong>{props.value}</strong>
+    <div
+      className={cn(
+        "relative grid gap-1 overflow-hidden border-2 bg-black/30 p-2",
+        meterBorderClass(props.tone),
+      )}
+    >
+      {visualProgress !== undefined ? (
+        <span
+          className={cn(
+            "absolute inset-y-0 left-0",
+            meterFillClass(props.tone),
+          )}
+          style={{ width: `${visualProgress * 100}%` }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className={cn("relative opacity-75", meterTextClass(props.tone))}>
+        {props.label}
+      </span>
+      <strong className={cn("relative", meterTextClass(props.tone))}>
+        {props.value}
+      </strong>
     </div>
   );
+}
+
+function meterFillClass(tone?: "success" | "warning" | "danger") {
+  switch (tone) {
+    case "danger":
+      return "bg-[#ff5555]/20";
+    case "warning":
+      return "bg-[#ffff55]/20";
+    case "success":
+      return "bg-[#55ff55]/15";
+    default:
+      return "bg-white/10";
+  }
+}
+
+function meterBorderClass(tone?: "success" | "warning" | "danger") {
+  switch (tone) {
+    case "danger":
+      return "border-[#ff5555]/45";
+    case "warning":
+      return "border-[#ffff55]/40";
+    case "success":
+      return "border-[#55ff55]/35";
+    default:
+      return "border-white/20";
+  }
+}
+
+function meterTextClass(tone?: "success" | "warning" | "danger") {
+  switch (tone) {
+    case "danger":
+      return "text-[#ff5555]";
+    case "warning":
+      return "text-[#ffff55]";
+    case "success":
+      return "text-[#55ff55]";
+    default:
+      return "text-white";
+  }
+}
+
+function normalizeProgress(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return;
+  return Math.min(1, Math.max(0, value));
+}
+
+function normalizeVisualProgress(value: number) {
+  if (value > 0 && value < 0.02) return 0.02;
+  if (value > 0.98) return 1;
+  return value;
 }
 
 export function percent(value?: number) {

@@ -13,18 +13,18 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
     .usage((session) => session.text(".usage", { command: commandName }))
     .action(async ({ session }, input) => {
       if (!input) return;
-      return dispatchRootAction(session, messageScope, input, config, client);
+      return dispatchRootAction(ctx, session, messageScope, input, config, client);
     });
 
   ctx.command(`${commandName}.check`, "Check MCSManager API connectivity.", commandOptions)
     .action(({ session }) => checkConnection(session, messageScope, client));
 
   ctx.command(`${commandName}.status`, "Show MCSManager node status.", commandOptions)
-    .action(({ session }) => showNodeStatus(session, messageScope, config, client));
+    .action(({ session }) => showNodeStatus(ctx, session, messageScope, config, client));
 
   ctx.command(`${commandName}.servers`, "Show Minecraft servers from MCSManager.", commandOptions)
     .alias(`${commandName}.list`)
-    .action(({ session }) => showMinecraftServers(session, messageScope, config, client));
+    .action(({ session }) => showMinecraftServers(ctx, session, messageScope, config, client));
 
   ctx.command(`${commandName}.addr <name:text>`, "Copy a Minecraft server address.", commandOptions)
     .alias(`${commandName}.address`)
@@ -34,13 +34,13 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
     .action(({ session }) => refreshCache(session, messageScope, client));
 }
 
-async function dispatchRootAction(session: Session, scope: string, input: string, config: Config, client: MCSManagerClient) {
+async function dispatchRootAction(ctx: Context, session: Session, scope: string, input: string, config: Config, client: MCSManagerClient) {
   const [action = "", ...args] = input.trim().split(/\s+/);
   const rest = args.join(" ");
 
   if (action === "check") return checkConnection(session, scope, client);
-  if (action === "status") return showNodeStatus(session, scope, config, client);
-  if (action === "servers" || action === "list") return showMinecraftServers(session, scope, config, client);
+  if (action === "status") return showNodeStatus(ctx, session, scope, config, client);
+  if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client);
   if (action === "addr" || action === "address") return showServerAddress(session, scope, client, rest);
   if (action === "refresh") return refreshCache(session, scope, client);
 
@@ -56,19 +56,19 @@ async function checkConnection(session: Session, scope: string, client: MCSManag
   }
 }
 
-async function showNodeStatus(session: Session, scope: string, config: Config, client: MCSManagerClient) {
+async function showNodeStatus(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const nodes = await client.listNodes();
-    return renderNodeStatus(config, nodes, createRenderText(session, scope, config));
+    return renderNodeStatus(ctx, config, nodes, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "status-failed", { message: formatErrorMessage(session, scope, error) });
   }
 }
 
-async function showMinecraftServers(session: Session, scope: string, config: Config, client: MCSManagerClient) {
+async function showMinecraftServers(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
     const servers = await client.listMinecraftInstances();
-    return renderServerList(config, servers, createRenderText(session, scope, config));
+    return renderServerList(ctx, config, servers, createRenderText(session, scope, config));
   } catch (error) {
     return text(session, scope, "servers-failed", { message: formatErrorMessage(session, scope, error) });
   }

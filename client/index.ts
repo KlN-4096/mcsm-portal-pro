@@ -89,6 +89,7 @@ interface MinecraftTextSegment {
 interface VisualizationMockData {
   portalName: string;
   copyright: string;
+  pluginVersion: string;
   nodeTitle: string;
   serverTitle: string;
   showGeneratedAt: boolean;
@@ -258,6 +259,9 @@ const PreviewPage = defineComponent({
                             "mcsm-portal-preview-workbench",
                             isStacked.value ? "is-stacked" : "",
                           ],
+                          style: {
+                            "--mcsm-preview-width": `${selectedLayout.value.previewWidth}px`,
+                          },
                         },
                         [
                           h(
@@ -597,6 +601,9 @@ const ReactLayoutHost = defineComponent<{
           h("div", {
             ref: host,
             class: "mcsm-react-host",
+            style: {
+              width: `${props.layout.previewWidth}px`,
+            },
           }),
         ],
       );
