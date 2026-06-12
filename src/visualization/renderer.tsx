@@ -99,13 +99,24 @@ export async function renderVisualizationImage(
       waitUntil: "domcontentloaded",
     });
     await page.evaluate(WAIT_FOR_PREVIEW_ASSETS_SCRIPT);
+    const renderedHeight = normalizeRenderedHeight(
+      result.height,
+      await page.evaluate<number>(MEASURE_IMAGE_HEIGHT_SCRIPT),
+    );
+    if (renderedHeight !== result.height) {
+      await page.setViewport({
+        width: result.width,
+        height: renderedHeight,
+        deviceScaleFactor: renderScale,
+      });
+    }
     const buffer = await page.screenshot({
       type: "png",
       clip: {
         x: 0,
         y: 0,
         width: result.width,
-        height: result.height,
+        height: renderedHeight,
       },
     });
     return h.image(buffer, "image/png");
@@ -116,6 +127,13 @@ export async function renderVisualizationImage(
 
 function normalizeRenderScale(value: number) {
   return Number.isFinite(value) ? Math.min(4, Math.max(1, value)) : 1;
+}
+
+function normalizeRenderedHeight(estimatedHeight: number, renderedHeight: number) {
+  if (!Number.isFinite(renderedHeight) || renderedHeight <= 0) {
+    return estimatedHeight;
+  }
+  return Math.max(estimatedHeight, Math.ceil(renderedHeight));
 }
 
 const WAIT_FOR_PREVIEW_ASSETS_SCRIPT = `(() => {
@@ -135,6 +153,18 @@ const WAIT_FOR_PREVIEW_ASSETS_SCRIPT = `(() => {
       })),
       timeout(2500),
     ]));
+})()`;
+
+const MEASURE_IMAGE_HEIGHT_SCRIPT = `(() => {
+  const root = document.querySelector(".mcsm-image-base");
+  const rectHeight = root ? root.getBoundingClientRect().height : 0;
+  const scrollHeight = root ? root.scrollHeight : 0;
+  return Math.max(
+    rectHeight,
+    scrollHeight,
+    document.body ? document.body.scrollHeight : 0,
+    document.documentElement ? document.documentElement.scrollHeight : 0
+  );
 })()`;
 
 function createVisualizationHtml(result: VisualizationRenderResult) {
@@ -203,9 +233,9 @@ function getLayout(surface: CodeAuthoredLayoutDefinition["surface"], width?: num
 
 function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: VisualizationLayoutData) {
   if (layout.surface === "node-status") {
-    if (!data.nodes.length) return 390;
-    return 145 + Math.max(data.nodes.length, 1) * 190;
+    if (!data.nodes.length) return 480;
+    return 190 + Math.max(data.nodes.length, 1) * 210;
   }
-  if (!data.servers.length) return 430;
-  return 170 + data.servers.length * 98;
+  if (!data.servers.length) return 480;
+  return 220 + data.servers.length * 112;
 }

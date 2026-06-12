@@ -154,11 +154,26 @@ function renderMotd(server: MinecraftInstance, defaultMotd: string) {
     >
       {lines[index]?.map((segment, segmentIndex) => (
         <span key={segmentIndex} style={createMinecraftTextStyle(segment)}>
-          {segment.text}
+          {renderMotdSegmentText(segment.text)}
         </span>
       ))}
     </span>
   ));
+}
+
+function renderMotdSegmentText(text: string) {
+  return text.split(/([ \t]+)/).map((part, index) => {
+    if (!part) return null;
+    if (!/^[ \t]+$/.test(part)) return part;
+    return [...part].map((character, spaceIndex) => (
+      <span
+        key={`${index}-${spaceIndex}`}
+        className="inline-block"
+        style={{ width: character === "\t" ? "2em" : "0.5em" }}
+        aria-hidden="true"
+      />
+    ));
+  });
 }
 
 function splitMotdLines(segments: MinecraftTextSegment[]) {

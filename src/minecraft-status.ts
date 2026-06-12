@@ -133,8 +133,8 @@ function normalizeDescription(value: unknown): { text: string; segments: Minecra
     ? parseMinecraftText(value)
     : parseMinecraftChatComponent(value);
 
-  const text = segments.map((segment) => segment.text).join("").trim();
-  return text ? { text, segments } : undefined;
+  const text = segments.map((segment) => segment.text).join("");
+  return text.trim() ? { text, segments } : undefined;
 }
 
 function writeString(value: string) {
