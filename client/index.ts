@@ -259,10 +259,8 @@ const PreviewPage = defineComponent({
     const realError = ref("");
     const workbench = ref<HTMLElement>();
     const isStacked = ref(false);
-    const previewGeneratedAt = ref(new Date().toISOString());
     let resizeObserver: ResizeObserver | undefined;
     let observedWorkbench: HTMLElement | undefined;
-    let generatedAtTimer: ReturnType<typeof setInterval> | undefined;
 
     const layouts = computed(() => rpc.value?.layouts ?? []);
     const mock = computed(() => rpc.value?.mock);
@@ -274,7 +272,7 @@ const PreviewPage = defineComponent({
       if (!data) return data;
       return {
         ...data,
-        generatedAt: data.showGeneratedAt ? previewGeneratedAt.value : undefined,
+        generatedAt: data.showGeneratedAt ? data.generatedAt : undefined,
         text: createPreviewLayoutText(data),
       };
     });
@@ -394,9 +392,6 @@ const PreviewPage = defineComponent({
     }
 
     onMounted(() => {
-      generatedAtTimer = setInterval(() => {
-        previewGeneratedAt.value = new Date().toISOString();
-      }, 1000);
       resizeObserver = new ResizeObserver(updateLayoutMode);
       if (workbench.value) resizeObserver.observe(workbench.value);
       observedWorkbench = workbench.value;
@@ -404,7 +399,6 @@ const PreviewPage = defineComponent({
     });
 
     onBeforeUnmount(() => {
-      if (generatedAtTimer) clearInterval(generatedAtTimer);
       resizeObserver?.disconnect();
     });
 
@@ -669,9 +663,7 @@ const PreviewPage = defineComponent({
                                       summaryItem(
                                         t("generated"),
                                         activeData.value.generatedAt
-                                          ? formatDate(
-                                              activeData.value.generatedAt,
-                                            )
+                                          ? activeData.value.generatedAt
                                           : t("hidden"),
                                       ),
                                       summaryItem(
@@ -813,10 +805,6 @@ function renderComponentPreview(
 
 function summaryItem(label: string, value: string) {
   return h("div", [h("span", label), h("strong", value)]);
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
 }
 
 function formatMessage(

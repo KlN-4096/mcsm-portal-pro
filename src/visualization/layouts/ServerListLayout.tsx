@@ -7,7 +7,6 @@ import {
   ImageShell,
   ImageTitleBlock,
   VersionTag,
-  formatDate,
   formatPlayers,
   serverLatencyLabel,
 } from "./components";
@@ -135,7 +134,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
         </span>
         {data.generatedAt ? (
           <time className="m-0 text-right font-minecraft text-sm">
-            {formatDate(data.generatedAt)}
+            {data.generatedAt}
           </time>
         ) : null}
       </footer>

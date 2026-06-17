@@ -18,6 +18,7 @@ import {
 } from "./render-text";
 import type { VisualizationLayoutText } from "./visualization/layouts";
 import { resolveBackgroundTextureChoice } from "./visualization/styles";
+import { formatKoishiDate } from "./time";
 import { PLUGIN_VERSION } from "./version";
 
 export type VisualizationSurface = "node-status" | "server-list";
@@ -229,7 +230,7 @@ function createVisualizationDataBase(config?: Config) {
     nodeTitle: config ? resolveNodeImageTitle(config) : DEFAULT_NODE_IMAGE_TITLE,
     serverTitle: config ? resolveServerImageTitle(config) : DEFAULT_SERVER_IMAGE_TITLE,
     showGeneratedAt,
-    generatedAt: showGeneratedAt ? new Date().toISOString() : undefined,
+    generatedAt: showGeneratedAt ? formatKoishiDate(new Date()) : undefined,
     backgroundTexture: backgroundTexture.name || undefined,
     backgroundTile: backgroundTexture.dataUri,
   };

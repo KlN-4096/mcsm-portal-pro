@@ -16,7 +16,12 @@ import {
   createVisualizationLayoutText,
   type RenderText,
 } from "../render-text";
-import { codeAuthoredLayouts, type CodeAuthoredLayoutDefinition, withImageWidth } from "../visualization";
+import { formatKoishiDate } from "../time";
+import {
+  codeAuthoredLayouts,
+  type CodeAuthoredLayoutDefinition,
+  withImageWidth,
+} from "../visualization";
 import { PLUGIN_VERSION } from "../version";
 import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
 import { createVisualizationCss } from "./styles";
@@ -201,7 +206,9 @@ export function createVisualizationData(
     nodeTitle: resolveNodeImageTitle(config),
     serverTitle: resolveServerImageTitle(config),
     showGeneratedAt: config.image.showGeneratedAt,
-    generatedAt: config.image.showGeneratedAt ? new Date().toISOString() : undefined,
+    generatedAt: config.image.showGeneratedAt
+      ? formatKoishiDate(new Date())
+      : undefined,
     backgroundTexture: backgroundTexture.name || undefined,
     backgroundTile: backgroundTexture.dataUri,
     text: createVisualizationLayoutText(text, nodes, servers),

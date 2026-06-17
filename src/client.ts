@@ -1,4 +1,4 @@
-import type { Context } from "koishi";
+import { Time, type Context } from "koishi";
 import type {
   ConnectionConfig,
   LatencyFallbackServiceConfig,
@@ -382,7 +382,7 @@ export class MCSManagerClient {
   private writeCache<T>(value: T): CacheEntry<T> | undefined {
     if (this.cacheTtl <= 0) return;
     return {
-      expiresAt: Date.now() + this.cacheTtl * 1000,
+      expiresAt: Date.now() + this.cacheTtl * Time.second,
       value,
     };
   }

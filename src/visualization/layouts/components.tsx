@@ -56,7 +56,7 @@ export function ImageMetaOverlay(props: {
 }) {
   return (
     <div className="grid justify-items-end gap-0.5 text-right opacity-75">
-      {props.generatedAt ? <time>{formatDate(props.generatedAt)}</time> : null}
+      {props.generatedAt ? <time>{props.generatedAt}</time> : null}
       <span className="flex items-center justify-end gap-1.5">
         <VersionTag version={props.pluginVersion} />
         <small className="whitespace-nowrap font-minecraft text-[9px] leading-none">
@@ -237,10 +237,6 @@ export function serverLatencyLabel(
   labels: Record<MinecraftInstance["status"], string>,
 ) {
   return labels[server.status] ?? labels.unknown;
-}
-
-export function formatDate(value: string) {
-  return new Date(value).toLocaleString();
 }
 
 function formatBytes(value: number) {
