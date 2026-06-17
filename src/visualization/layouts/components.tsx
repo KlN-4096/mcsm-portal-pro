@@ -59,7 +59,7 @@ export function ImageMetaOverlay(props: {
       {props.generatedAt ? <time>{formatDate(props.generatedAt)}</time> : null}
       <span className="flex items-center justify-end gap-1.5">
         <VersionTag version={props.pluginVersion} />
-        <small className="font-minecraft text-xs">
+        <small className="whitespace-nowrap font-minecraft text-[9px] leading-none">
           <FormattedText text={props.copyright} />
         </small>
       </span>
@@ -69,7 +69,7 @@ export function ImageMetaOverlay(props: {
 
 export function VersionTag(props: { version: string }) {
   return (
-    <small className="inline-block bg-white/15 px-[5px] py-[3px] font-minecraft text-[10px] leading-none text-white/85">
+    <small className="inline-block bg-white/15 px-1 py-0.5 font-minecraft text-[8px] leading-none text-white/85">
       v{props.version}
     </small>
   );

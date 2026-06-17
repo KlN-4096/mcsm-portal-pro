@@ -36,7 +36,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
             <article
               key={server.id}
               className={cn(
-                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_156px] items-stretch gap-3 border-2 p-[6px_12px_6px_6px] border-white/20",
+                "grid min-h-[86px] grid-cols-[86px_minmax(0,1fr)_max-content] items-stretch gap-3 border-2 p-[6px_12px_6px_6px] border-white/20",
                 server.status === "running" ? "bg-black/40" : "bg-transparent",
               )}
             >
@@ -56,8 +56,8 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                   </span>
                 )}
               </div>
-              <div className="grid min-w-0 grid-rows-[auto_1fr_auto]">
-                <div className="flex min-w-0 justify-between gap-3">
+              <div className="col-start-2 col-end-4 row-start-1 grid min-w-0 grid-rows-[auto_1fr_auto]">
+                <div className="flex min-w-0 justify-between gap-3 pr-[156px]">
                   <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xl font-normal">
                     {server.name}
                   </strong>
@@ -65,11 +65,11 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                 <div className="mt-1 grid min-h-9 grid-rows-[repeat(2,18px)] content-start overflow-hidden leading-[18px]">
                   {renderMotd(server, data.text.defaultMotd)}
                 </div>
-                <p className="m-0 self-end overflow-hidden text-ellipsis whitespace-nowrap font-minecraft text-[11px] leading-[13px] opacity-70">
+                <p className="m-0 self-end overflow-hidden text-ellipsis whitespace-nowrap pr-[156px] font-minecraft text-[11px] leading-[13px] opacity-70">
                   {server.address ?? data.text.noAddressConfigured}
                 </p>
               </div>
-              <aside className="grid min-h-[60px] min-w-0 w-full content-stretch justify-items-end gap-1 overflow-hidden grid-rows-[auto_auto_1fr]">
+              <aside className="col-start-3 col-end-4 row-start-1 grid min-h-[60px] min-w-0 w-max max-w-[156px] content-stretch justify-items-end gap-0.5 overflow-hidden grid-rows-[auto_auto_1fr]">
                 <span className="flex h-3.5 items-baseline justify-end gap-1">
                   <span
                     className={cn(
@@ -97,18 +97,21 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                     )}
                   </span>
                 </span>
-                <div className="grid h-6 min-w-0 content-between justify-items-end">
-                  <small
-                    className={cn(
-                      "block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-minecraft-five text-[7px] leading-none",
-                      latencyTextClass(server),
-                    )}
-                  >
-                    {serverLatencyLabel(server, data.text.statusLabels)}
-                  </small>
-                  <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-monocraft text-sm leading-none tracking-[-0.04em]">
-                    {formatPlayers(server, data.text.unknown)}
-                  </span>
+                <div className="grid h-4 min-w-0 content-end justify-items-end">
+                  {server.status === "running" ? (
+                    <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-monocraft text-sm leading-none tracking-[-0.04em]">
+                      {formatPlayers(server, data.text.unknown)}
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "block max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-minecraft-five text-sm leading-none",
+                        latencyTextClass(server),
+                      )}
+                    >
+                      {serverStatusTag(server, data.text.offline, data.text.statusLabels)}
+                    </span>
+                  )}
                 </div>
                 <small className="max-w-full self-end break-words text-right font-minecraft">
                   {formatGameVersion(server)}
@@ -125,7 +128,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
       <div className="min-h-0.5 flex-auto" />
       <footer className="border-t-2 border-black/30 mx-[-32px] mb-[-20px] mt-0 flex basis-[46px] items-end justify-between gap-4 bg-black/60 px-8 pb-3 pt-2.5">
         <span className="flex items-center gap-2">
-          <small className="font-minecraft text-sm">
+          <small className="whitespace-nowrap font-minecraft text-[10px] leading-none">
             <FormattedText text={data.copyright} />
           </small>
           <VersionTag version={data.pluginVersion} />
@@ -192,6 +195,16 @@ function splitMotdLines(segments: MinecraftTextSegment[]) {
 
 function isInactiveServer(server: MinecraftInstance) {
   return server.status === "stopped" || server.status === "unknown";
+}
+
+function serverStatusTag(
+  server: MinecraftInstance,
+  offline: string,
+  labels: Record<MinecraftInstance["status"], string>,
+) {
+  return isInactiveServer(server)
+    ? offline
+    : serverLatencyLabel(server, labels);
 }
 
 function formatLatency(server: MinecraftInstance) {

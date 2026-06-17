@@ -1,16 +1,16 @@
 {
   "name": "koishi-plugin-mcsm-portal",
-  "description": "A unified portal for MCSManager.",
-  "version": "0.0.10",
+  "description": "A Minecraft-styled MCSManager portal for Koishi.",
+  "version": "0.0.17",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "homepage": "https://github.com/KrLite/koishi-plugin-mcsm-portal#readme",
+  "homepage": "https://github.com/KrLite/mcsm-portal#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KrLite/koishi-plugin-mcsm-portal.git"
+    "url": "git+https://github.com/KrLite/mcsm-portal.git"
   },
   "bugs": {
-    "url": "https://github.com/KrLite/koishi-plugin-mcsm-portal/issues"
+    "url": "https://github.com/KrLite/mcsm-portal/issues"
   },
   "files": [
     "lib",
