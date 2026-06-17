@@ -4,7 +4,7 @@
 
 A Minecraft-styled MCSManager portal for Koishi.
 
-## Features
+## Feature
 
 - Bind to an MCSManager panel with an API key.
 - Check MCSManager node status from chat.
