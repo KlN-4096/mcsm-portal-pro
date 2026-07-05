@@ -153,7 +153,7 @@ function createAssetDirectoryCandidates(kind: AssetKind) {
   return [
     join(__dirname, "../assets", kind),
     join(__dirname, "../../assets", kind),
-    join(process.cwd(), "external/mcsm-portal/assets", kind),
+    join(process.cwd(), "external/mcsm-portal-pro/assets", kind),
     join(process.cwd(), "assets", kind),
   ];
 }

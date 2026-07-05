@@ -1,4 +1,6 @@
-export type InstanceStatus = "running" | "stopped" | "starting" | "stopping" | "unknown";
+export const INSTANCE_STATUSES = ["running", "stopped", "starting", "stopping", "unknown"] as const;
+
+export type InstanceStatus = typeof INSTANCE_STATUSES[number];
 
 export interface NodeStatus {
   id: string;
@@ -32,6 +34,7 @@ export interface MinecraftInstance {
   latencyMs?: number;
   onlinePlayers?: number;
   maxPlayers?: number;
+  playerNames?: string[];
   version?: string;
   motd?: string;
   motdSegments?: MinecraftTextSegment[];
@@ -58,6 +61,7 @@ export interface ServerAddress {
 export interface ServerFieldVisibility {
   address: boolean;
   onlineCount: boolean;
+  playerNames: boolean;
   status: boolean;
   node: boolean;
   version: boolean;

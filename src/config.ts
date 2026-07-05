@@ -1,6 +1,10 @@
 import { Schema } from "koishi";
 import { CONFIG_LOCALES } from "./config.locales";
-import type { ServerFieldVisibility } from "./types";
+import {
+  INSTANCE_STATUSES,
+  type InstanceStatus,
+  type ServerFieldVisibility,
+} from "./types";
 import {
   listBackgroundTextureNames,
   RANDOM_BACKGROUND_TEXTURE,
@@ -75,11 +79,33 @@ export interface LatencyFallbackServiceConfig {
 export interface MinecraftConfig {
   pageSize: number;
   typeKeywords: string[];
+  defaultStatuses: InstanceStatus[];
   latencyFallback: LatencyFallbackServiceConfig[];
   latencyFallbackStrategy: "random" | "fallback" | "average";
   latencyFallbackTrigger: "missing" | "local" | "always";
   latencyFallbackLocalThreshold: number;
   latencyFallbackKeys: string[];
+}
+
+export interface CommandExecutionVotingConfig {
+  enabled: boolean;
+  approveCount: number;
+  timeout: number;
+  command: string;
+}
+
+export interface CommandExecutionConfig {
+  enabled: boolean;
+  authority: number;
+  selectionTimeout: number;
+  commandTimeout: number;
+  maxResultLength: number;
+  voting: CommandExecutionVotingConfig;
+}
+
+export interface ErrorMessagesConfig {
+  serversFailed: string;
+  execFailed: string;
 }
 
 export interface Config {
@@ -91,6 +117,8 @@ export interface Config {
   preview: PreviewConfig;
   qqInteractions: QQInteractionsConfig;
   minecraft: MinecraftConfig;
+  commandExecution: CommandExecutionConfig;
+  errorMessages: ErrorMessagesConfig;
   fields: ServerFieldVisibility;
   cacheTtl: number;
   debug: boolean;
@@ -151,6 +179,7 @@ const DEFAULT_QQ_INTERACTIONS_CONFIG: QQInteractionsConfig = {
 const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
   pageSize: 50,
   typeKeywords: ["minecraft"],
+  defaultStatuses: ["running"],
   latencyFallback: [],
   latencyFallbackStrategy: "fallback",
   latencyFallbackTrigger: "local",
@@ -176,9 +205,27 @@ const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
     "result.ms",
   ],
 };
+const DEFAULT_COMMAND_EXECUTION_CONFIG: CommandExecutionConfig = {
+  enabled: true,
+  authority: 3,
+  selectionTimeout: 60000,
+  commandTimeout: 60000,
+  maxResultLength: 1800,
+  voting: {
+    enabled: false,
+    approveCount: 2,
+    timeout: 60000,
+    command: "mcsm.vote",
+  },
+};
+const DEFAULT_ERROR_MESSAGES_CONFIG: ErrorMessagesConfig = {
+  serversFailed: "",
+  execFailed: "",
+};
 const DEFAULT_FIELDS_CONFIG: ServerFieldVisibility = {
   address: true,
   onlineCount: true,
+  playerNames: true,
   status: true,
   node: true,
   version: true,
@@ -186,49 +233,52 @@ const DEFAULT_FIELDS_CONFIG: ServerFieldVisibility = {
   modList: true,
 };
 
-export const Config = Schema.object({
-  title: Schema.string()
-    .description("Global title shown at the top of generated images.")
-    .default(PORTAL_IMAGE_BRAND),
-  connection: Schema.object({
-    endpoint: Schema.string()
-      .description(
-        "MCSManager panel API endpoint, for example http://my-server-ip:23333.",
-      )
-      .default(DEFAULT_CONNECTION_CONFIG.endpoint),
-    apiKey: Schema.string()
-      .role("secret")
-      .description("MCSManager API key.")
-      .default(DEFAULT_CONNECTION_CONFIG.apiKey),
-    apiKeyParam: Schema.string()
-      .description(
-        "Query parameter name used to send the API key.",
-      )
-      .default(DEFAULT_CONNECTION_CONFIG.apiKeyParam),
-    timeout: Schema.number()
-      .description(
-        "Request timeout in milliseconds.",
-      )
-      .min(1000)
-      .default(DEFAULT_CONNECTION_CONFIG.timeout),
-  })
-    .default(emptyObjectDefault<ConnectionConfig>())
-    .description("MCSManager connection"),
-  command: Schema.object({
-    name: Schema.string()
-      .description("Root command name.")
-      .default(DEFAULT_COMMAND_CONFIG.name),
-    authority: Schema.number()
-      .description(
-        "Minimum authority required to use portal commands.",
-      )
-      .min(0)
-      .max(5)
-      .default(DEFAULT_COMMAND_CONFIG.authority),
-  })
-    .default(emptyObjectDefault<CommandConfig>())
-    .description("Command settings"),
-  image: Schema.object({
+export const Config = Schema.intersect([
+  Schema.object({
+    title: Schema.string()
+      .description("Global title shown at the top of generated images.")
+      .default(PORTAL_IMAGE_BRAND),
+    connection: Schema.object({
+      endpoint: Schema.string()
+        .description(
+          "MCSManager panel API endpoint, for example http://my-server-ip:23333.",
+        )
+        .default(DEFAULT_CONNECTION_CONFIG.endpoint),
+      apiKey: Schema.string()
+        .role("secret")
+        .description("MCSManager API key.")
+        .default(DEFAULT_CONNECTION_CONFIG.apiKey),
+      apiKeyParam: Schema.string()
+        .description(
+          "Query parameter name used to send the API key.",
+        )
+        .default(DEFAULT_CONNECTION_CONFIG.apiKeyParam),
+      timeout: Schema.number()
+        .description(
+          "Request timeout in milliseconds.",
+        )
+        .min(1000)
+        .default(DEFAULT_CONNECTION_CONFIG.timeout),
+    })
+      .default(emptyObjectDefault<ConnectionConfig>())
+      .description("MCSManager connection"),
+    command: Schema.object({
+      name: Schema.string()
+        .description("Root command name.")
+        .default(DEFAULT_COMMAND_CONFIG.name),
+      authority: Schema.number()
+        .description(
+          "Minimum authority required to use portal commands.",
+        )
+        .min(0)
+        .max(5)
+        .default(DEFAULT_COMMAND_CONFIG.authority),
+    })
+      .default(emptyObjectDefault<CommandConfig>())
+      .description("Command settings"),
+  }).description("连接与命令"),
+  Schema.object({
+    image: Schema.object({
     nodeTitle: Schema.string()
       .description(
         "Title displayed below the global title in node status images.",
@@ -267,7 +317,8 @@ export const Config = Schema.object({
       .default(DEFAULT_IMAGE_CONFIG.renderScale),
   })
     .default(emptyObjectDefault<ImageConfig>())
-    .description("Image settings"),
+    .description("Image settings")
+    .collapse(),
   output: Schema.object({
     mode: Schema.union([
       Schema.const("text").description("Text"),
@@ -290,7 +341,8 @@ export const Config = Schema.object({
         .default(DEFAULT_TEXT_CONFIG.showSeparators),
     })
       .default(emptyObjectDefault<TextConfig>())
-      .description("Text output settings"),
+      .description("Text output settings")
+      .collapse(),
   })
     .default(emptyObjectDefault<OutputConfig>())
     .description("Output settings"),
@@ -302,8 +354,172 @@ export const Config = Schema.object({
       .default(DEFAULT_PREVIEW_CONFIG.enabled),
   })
     .default(emptyObjectDefault<PreviewConfig>())
-    .description("Visualization preview"),
-  qqInteractions: Schema.object({
+    .description("Visualization preview")
+    .collapse(),
+  }).description("显示输出"),
+  Schema.object({
+    minecraft: Schema.object({
+      pageSize: Schema.number()
+        .description(
+          "Number of instances to request from each MCSManager node per page.",
+        )
+        .min(1)
+        .max(50)
+        .default(DEFAULT_MINECRAFT_CONFIG.pageSize),
+      typeKeywords: Schema.array(Schema.string())
+        .description("Instance type keywords treated as Minecraft servers.")
+        .default(DEFAULT_MINECRAFT_CONFIG.typeKeywords),
+      defaultStatuses: Schema.array(createInstanceStatusSchema())
+        .description("Instance statuses shown by server list commands when no status filter is provided. Leave empty to show all statuses.")
+        .default(DEFAULT_MINECRAFT_CONFIG.defaultStatuses),
+      latencyFallback: Schema.array(
+        Schema.object({
+          name: Schema.string()
+            .description("Display name for this latency testing service.")
+            .default(""),
+          url: Schema.string()
+            .description(
+              "Latency testing service URL template. Supports {address}, {host}, and {port}.",
+            )
+            .default(""),
+        }),
+      )
+        .description("Remote latency testing services.")
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyFallback),
+      latencyFallbackStrategy: Schema.union([
+        Schema.const("fallback").description(
+          "Use services in order; try the next one if one fails or times out",
+        ),
+        Schema.const("random").description("Pick one service randomly"),
+        Schema.const("average").description(
+          "Query all services and average successful non-timeout results",
+        ),
+      ] as const)
+        .description("How multiple latency testing services are selected.")
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackStrategy),
+      latencyFallbackTrigger: Schema.union([
+        Schema.const("missing").description(
+          "Only when Minecraft status latency is missing",
+        ),
+        Schema.const("local").description(
+          "When latency is missing or looks local/useless",
+        ),
+        Schema.const("always").description(
+          "Always use testing services when possible",
+        ),
+      ] as const)
+        .description("When to use remote latency testing services.")
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackTrigger),
+      latencyFallbackLocalThreshold: Schema.number()
+        .description(
+          "Latency at or below this value, in milliseconds, is treated as local/useless.",
+        )
+        .min(0)
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackLocalThreshold),
+      latencyFallbackKeys: Schema.array(Schema.string())
+        .description(
+          "Response key paths used to read latency from service JSON. Dot paths are supported, for example data.ping.",
+        )
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackKeys),
+    })
+      .default(emptyObjectDefault<MinecraftConfig>())
+      .description("Minecraft instance discovery")
+      .collapse(),
+    fields: Schema.object({
+      address: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.address)
+        .description("Show server address."),
+      onlineCount: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.onlineCount)
+        .description("Show online player count."),
+      playerNames: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.playerNames)
+        .description("Show online player names returned by the MCSManager terminal list command."),
+      status: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.status)
+        .description("Show instance status."),
+      node: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.node)
+        .description("Show node name."),
+      version: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.version)
+        .description("Show Minecraft version."),
+      motd: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.motd)
+        .description("Show MOTD."),
+      modList: Schema.boolean()
+        .default(DEFAULT_FIELDS_CONFIG.modList)
+        .description("Show mod list."),
+    })
+      .default(emptyObjectDefault<ServerFieldVisibility>())
+      .description("Server list fields")
+      .collapse(),
+  }).description("Minecraft 服务器").collapse(),
+  Schema.object({
+    commandExecution: Schema.object({
+      enabled: Schema.boolean()
+        .description("Enable chat commands that execute through the MCSManager instance terminal.")
+        .default(DEFAULT_COMMAND_EXECUTION_CONFIG.enabled),
+      authority: Schema.number()
+        .description("Minimum authority required to execute instance commands.")
+        .min(0)
+        .max(5)
+        .default(DEFAULT_COMMAND_EXECUTION_CONFIG.authority),
+      selectionTimeout: Schema.number()
+        .description("Time to wait for interactive server selection, in milliseconds.")
+        .min(1000)
+        .default(DEFAULT_COMMAND_EXECUTION_CONFIG.selectionTimeout),
+      commandTimeout: Schema.number()
+        .description("Time to wait for interactive command input, in milliseconds.")
+        .min(1000)
+        .default(DEFAULT_COMMAND_EXECUTION_CONFIG.commandTimeout),
+      maxResultLength: Schema.number()
+        .description("Maximum terminal output length returned to chat.")
+        .min(100)
+        .default(DEFAULT_COMMAND_EXECUTION_CONFIG.maxResultLength),
+      voting: Schema.object({
+        enabled: Schema.boolean()
+          .description("Require a chat vote before executing instance commands.")
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.enabled),
+        approveCount: Schema.number()
+          .description("Number of approvals required to pass the vote.")
+          .min(1)
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.approveCount),
+        timeout: Schema.number()
+          .description("Vote timeout in milliseconds.")
+          .min(1000)
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout),
+        command: Schema.string()
+          .description("Vote command. Users reply with this command plus yes or no.")
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.command),
+      })
+        .default(emptyObjectDefault<CommandExecutionVotingConfig>())
+        .description("Execution vote")
+        .collapse(),
+    })
+      .default(emptyObjectDefault<CommandExecutionConfig>())
+      .description("Command execution")
+      .collapse(),
+  }).description("终端执行").collapse(),
+  Schema.object({
+    errorMessages: Schema.object({
+      serversFailed: Schema.string()
+        .role("textarea")
+        .description(
+          "Custom message for Minecraft server list loading failures. Supports {message}. Leave empty to use the built-in locale.",
+        )
+        .default(DEFAULT_ERROR_MESSAGES_CONFIG.serversFailed),
+      execFailed: Schema.string()
+        .role("textarea")
+        .description(
+          "Custom message for terminal command execution failures. Supports {message} and {name}. Leave empty to use the built-in locale.",
+        )
+        .default(DEFAULT_ERROR_MESSAGES_CONFIG.execFailed),
+    })
+      .default(emptyObjectDefault<ErrorMessagesConfig>())
+      .description("Error messages")
+      .collapse(),
+    qqInteractions: Schema.object({
     reactionMirror: Schema.object({
       enabled: Schema.boolean()
         .description(
@@ -344,103 +560,17 @@ export const Config = Schema.object({
       .description("QQ avatar double-tap"),
   })
     .default(emptyObjectDefault<QQInteractionsConfig>())
-    .description("QQ interactions"),
-  minecraft: Schema.object({
-    pageSize: Schema.number()
-      .description(
-        "Number of instances to request from each MCSManager node per page.",
-      )
-      .min(1)
-      .max(50)
-      .default(DEFAULT_MINECRAFT_CONFIG.pageSize),
-    typeKeywords: Schema.array(Schema.string())
-      .description("Instance type keywords treated as Minecraft servers.")
-      .default(DEFAULT_MINECRAFT_CONFIG.typeKeywords),
-    latencyFallback: Schema.array(
-      Schema.object({
-        name: Schema.string()
-          .description("Display name for this latency testing service.")
-          .default(""),
-        url: Schema.string()
-          .description(
-            "Latency testing service URL template. Supports {address}, {host}, and {port}.",
-          )
-          .default(""),
-      }),
-    )
-      .description("Remote latency testing services.")
-      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallback),
-    latencyFallbackStrategy: Schema.union([
-      Schema.const("fallback").description(
-        "Use services in order; try the next one if one fails or times out",
-      ),
-      Schema.const("random").description("Pick one service randomly"),
-      Schema.const("average").description(
-        "Query all services and average successful non-timeout results",
-      ),
-    ] as const)
-      .description("How multiple latency testing services are selected.")
-      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackStrategy),
-    latencyFallbackTrigger: Schema.union([
-      Schema.const("missing").description(
-        "Only when Minecraft status latency is missing",
-      ),
-      Schema.const("local").description(
-        "When latency is missing or looks local/useless",
-      ),
-      Schema.const("always").description(
-        "Always use testing services when possible",
-      ),
-    ] as const)
-      .description("When to use remote latency testing services.")
-      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackTrigger),
-    latencyFallbackLocalThreshold: Schema.number()
-      .description(
-        "Latency at or below this value, in milliseconds, is treated as local/useless.",
-      )
+    .description("QQ interactions")
+    .collapse(),
+    cacheTtl: Schema.number()
+      .description("Cache TTL for future MCSManager status queries, in seconds.")
       .min(0)
-      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackLocalThreshold),
-    latencyFallbackKeys: Schema.array(Schema.string())
-      .description(
-        "Response key paths used to read latency from service JSON. Dot paths are supported, for example data.ping.",
-      )
-      .default(DEFAULT_MINECRAFT_CONFIG.latencyFallbackKeys),
-  })
-    .default(emptyObjectDefault<MinecraftConfig>())
-    .description("Minecraft instance discovery"),
-  fields: Schema.object({
-    address: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.address)
-      .description("Show server address."),
-    onlineCount: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.onlineCount)
-      .description("Show online player count."),
-    status: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.status)
-      .description("Show instance status."),
-    node: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.node)
-      .description("Show node name."),
-    version: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.version)
-      .description("Show Minecraft version."),
-    motd: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.motd)
-      .description("Show MOTD."),
-    modList: Schema.boolean()
-      .default(DEFAULT_FIELDS_CONFIG.modList)
-      .description("Show mod list."),
-  })
-    .default(emptyObjectDefault<ServerFieldVisibility>())
-    .description("Server list fields"),
-  cacheTtl: Schema.number()
-    .description("Cache TTL for future MCSManager status queries, in seconds.")
-    .min(0)
-    .default(30),
-  debug: Schema.boolean()
-    .description("Print verbose MCSManager discovery logs for debugging.")
-    .default(false),
-})
+      .default(30),
+    debug: Schema.boolean()
+      .description("Print verbose MCSManager discovery logs for debugging.")
+      .default(false),
+  }).description("QQ 与高级"),
+])
   .description("MCSM Portal settings")
   .i18n(CONFIG_LOCALES) as Schema<ConfigInput>;
 
@@ -517,6 +647,7 @@ export function createRuntimeConfig(config: ConfigInput): Config {
       pageSize: config.minecraft?.pageSize ?? DEFAULT_MINECRAFT_CONFIG.pageSize,
       typeKeywords:
         config.minecraft?.typeKeywords ?? DEFAULT_MINECRAFT_CONFIG.typeKeywords,
+      defaultStatuses: normalizeInstanceStatuses(config.minecraft?.defaultStatuses),
       latencyFallback: normalizeLatencyFallbackServices(
         config.minecraft?.latencyFallback,
       ),
@@ -549,10 +680,49 @@ export function createRuntimeConfig(config: ConfigInput): Config {
           DEFAULT_MINECRAFT_CONFIG.latencyFallbackKeys,
         ),
     },
+    commandExecution: {
+      enabled:
+        config.commandExecution?.enabled ?? DEFAULT_COMMAND_EXECUTION_CONFIG.enabled,
+      authority:
+        config.commandExecution?.authority ?? DEFAULT_COMMAND_EXECUTION_CONFIG.authority,
+      selectionTimeout:
+        config.commandExecution?.selectionTimeout ??
+        DEFAULT_COMMAND_EXECUTION_CONFIG.selectionTimeout,
+      commandTimeout:
+        config.commandExecution?.commandTimeout ??
+        DEFAULT_COMMAND_EXECUTION_CONFIG.commandTimeout,
+      maxResultLength:
+        config.commandExecution?.maxResultLength ??
+        DEFAULT_COMMAND_EXECUTION_CONFIG.maxResultLength,
+      voting: {
+        enabled:
+          config.commandExecution?.voting?.enabled ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.enabled,
+        approveCount:
+          config.commandExecution?.voting?.approveCount ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.approveCount,
+        timeout:
+          config.commandExecution?.voting?.timeout ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout,
+        command:
+          config.commandExecution?.voting?.command ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.command,
+      },
+    },
+    errorMessages: {
+      serversFailed:
+        config.errorMessages?.serversFailed ??
+        DEFAULT_ERROR_MESSAGES_CONFIG.serversFailed,
+      execFailed:
+        config.errorMessages?.execFailed ??
+        DEFAULT_ERROR_MESSAGES_CONFIG.execFailed,
+    },
     fields: {
       address: config.fields?.address ?? DEFAULT_FIELDS_CONFIG.address,
       onlineCount:
         config.fields?.onlineCount ?? DEFAULT_FIELDS_CONFIG.onlineCount,
+      playerNames:
+        config.fields?.playerNames ?? DEFAULT_FIELDS_CONFIG.playerNames,
       status: config.fields?.status ?? DEFAULT_FIELDS_CONFIG.status,
       node: config.fields?.node ?? DEFAULT_FIELDS_CONFIG.node,
       version: config.fields?.version ?? DEFAULT_FIELDS_CONFIG.version,
@@ -564,13 +734,15 @@ export function createRuntimeConfig(config: ConfigInput): Config {
   };
 }
 
-function normalizeLatencyFallbackServices(
-  value: ConfigInput["minecraft"] extends infer M
-    ? M extends { latencyFallback?: infer L }
-      ? L
-      : never
-    : never,
-): LatencyFallbackServiceConfig[] {
+function normalizeInstanceStatuses(value: unknown): InstanceStatus[] {
+  if (!Array.isArray(value)) return DEFAULT_MINECRAFT_CONFIG.defaultStatuses;
+  const statuses = value.filter((status): status is InstanceStatus =>
+    typeof status === "string" && (INSTANCE_STATUSES as readonly string[]).includes(status),
+  );
+  return [...new Set(statuses)];
+}
+
+function normalizeLatencyFallbackServices(value: unknown): LatencyFallbackServiceConfig[] {
   if (Array.isArray(value)) {
     return value.map(normalizeLatencyFallbackService);
   }
@@ -582,11 +754,12 @@ function normalizeLatencyFallbackServices(
 }
 
 function normalizeLatencyFallbackService(
-  service: RecursivePartial<LatencyFallbackServiceConfig>,
+  service: unknown,
 ): LatencyFallbackServiceConfig {
+  const record = readRecord(service);
   return {
-    name: service.name ?? "",
-    url: service.url ?? "",
+    name: readString(record, "name") ?? "",
+    url: readString(record, "url") ?? "",
   };
 }
 
@@ -650,6 +823,12 @@ function createBackgroundTextureSchema() {
   return Schema.union(options)
     .description("Tiled background texture from assets/textures.")
     .default(DEFAULT_BACKGROUND_TEXTURE);
+}
+
+function createInstanceStatusSchema() {
+  return Schema.union(
+    INSTANCE_STATUSES.map((status) => Schema.const(status).description(status)),
+  );
 }
 
 function createDefaultBackgroundTexture() {

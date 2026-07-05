@@ -1,11 +1,11 @@
-import type { Context } from "koishi";
+import type { Context, I18n } from "koishi";
 
 export function defineLocales(ctx: Context, commandName: string) {
   ctx.i18n.define("en-US", createLocale(commandName, enUS));
   ctx.i18n.define("zh-CN", createLocale(commandName, zhCN));
 }
 
-function createLocale(commandName: string, messages: LocaleMessages) {
+function createLocale(commandName: string, messages: LocaleMessages): I18n.Store {
   return {
     [`commands.${commandName}`]: {
       description: messages.commands.root,
@@ -23,6 +23,9 @@ function createLocale(commandName: string, messages: LocaleMessages) {
     [`commands.${commandName}.addr`]: {
       description: messages.commands.addr,
     },
+    [`commands.${commandName}.exec`]: {
+      description: messages.commands.exec,
+    },
     [`commands.${commandName}.refresh`]: {
       description: messages.commands.refresh,
     },
@@ -30,7 +33,7 @@ function createLocale(commandName: string, messages: LocaleMessages) {
 }
 
 interface LocaleMessages {
-  commands: Record<"root" | "check" | "status" | "servers" | "addr" | "refresh", string>;
+  commands: Record<"root" | "check" | "status" | "servers" | "addr" | "exec" | "refresh", string>;
   messages: LocaleMessageTree;
 }
 
@@ -45,22 +48,41 @@ const enUS: LocaleMessages = {
     status: "Show MCSManager node status.",
     servers: "Show Minecraft servers from MCSManager.",
     addr: "Copy a Minecraft server address.",
+    exec: "Execute an instance command through the MCSManager terminal.",
     refresh: "Refresh cached MCSManager data.",
   },
   messages: {
-    usage: "Available actions: check, status, servers, addr <name>, refresh.\nYou can use either \"{command} status\" or \"{command}.status\".",
-    "unknown-action": "Unknown MCSManager action \"{action}\". Available actions: check, status, servers, addr <name>, refresh.",
+    usage: "Available actions: check, status, servers [status], addr <name>, exec [server] [command], refresh.\nYou can use either \"{command} status\" or \"{command}.status\".",
+    "unknown-action": "Unknown MCSManager action \"{action}\". Available actions: check, status, servers [status], addr <name>, exec [server] [command], refresh.",
     "check-success": "MCSManager connection check succeeded.",
     "check-failed": "MCSManager connection check failed: {message}",
-    "status-loading": "Loading MCSManager node status...",
     "status-failed": "Failed to load MCSManager node status: {message}",
-    "servers-loading": "Loading Minecraft server list...",
     "servers-failed": "Failed to load Minecraft servers: {message}",
+    "servers-invalid-status": "Unknown server status \"{status}\". Available values: {statuses}.",
     "addr-missing-query": "Please provide a server name, alias, or ID.",
     "addr-not-found": "No MCSManager server matched \"{name}\".",
     "addr-ambiguous": "Multiple servers matched \"{name}\": {matches}.",
     "addr-missing-address": "{name} does not expose an address from MCSManager yet.",
-    "refresh-loading": "Refreshing MCSManager portal cache...",
+    "exec-low-authority": "Low authority.",
+    "exec-disabled": "Command execution is disabled in plugin config.",
+    "exec-command-prompt": "Please provide the command to execute.",
+    "exec-command-cancelled": "No command was entered; command execution was cancelled.",
+    "exec-no-running-servers": "No running Minecraft servers are available.",
+    "exec-select-server": "Select the running server to execute the command on:\n{servers}",
+    "exec-select-invalid": "Invalid server number. Please enter a number from 1 to {total}.",
+    "exec-ambiguous": "Multiple servers matched \"{name}\": {matches}.",
+    "exec-missing-node": "{name} does not expose a daemon ID from MCSManager.",
+    "exec-not-running": "{name} is not running. Current status: {status}.",
+    "exec-result": "{name} terminal output:\n{output}",
+    "exec-no-output": "Command sent to {name}, but no new terminal output was captured.",
+    "exec-failed": "Failed to execute terminal command: {message}",
+    "exec-vote-active": "A command execution vote is already active in this chat.",
+    "exec-vote-guild-only": "Command execution voting can only be used in group chats.",
+    "exec-vote-start": "Command execution vote for {name}:\n{command}\nReply with {voteCommand} yes or {voteCommand} no.\n{progress}",
+    "exec-vote-progress": "Vote progress: {progress}",
+    "exec-vote-rejected": "Vote rejected; command execution was cancelled.",
+    "exec-vote-timeout": "Vote timed out; command execution was cancelled.",
+    "exec-vote-already-voted": "You have already voted.",
     "refresh-success": "MCSManager portal cache refreshed.",
     "error-unknown": "Unknown error",
     render: {
@@ -77,7 +99,8 @@ const enUS: LocaleMessages = {
       address: "Address",
       status: "Status",
       node: "Node",
-      players: "Players",
+      players: "Online players",
+      "player-names": "Players",
       type: "Type",
       version: "Version",
       motd: "MOTD",
@@ -92,6 +115,7 @@ const enUS: LocaleMessages = {
       "default-motd": "Minecraft Server",
       "instance-counts": "Instances {running} running / {stopped} stopped / {total} total",
       "player-count": "{online}/{max} online",
+      "player-list": "Players: {players}",
       mods: "{count} mods",
       "status-labels": {
         running: "running",
@@ -111,22 +135,41 @@ const zhCN: LocaleMessages = {
     status: "查看 MCSManager 节点状态。",
     servers: "查看 MCSManager 中的 Minecraft 服务器。",
     addr: "快速复制 Minecraft 服务器地址。",
+    exec: "通过 MCSManager 终端执行实例指令。",
     refresh: "刷新缓存的 MCSManager 数据。",
   },
   messages: {
-    usage: "可用操作：check、status、servers、addr <名称>、refresh。\n可使用 \"{command} status\" 或 \"{command}.status\"。",
-    "unknown-action": "未知的 MCSManager 操作 \"{action}\"。可用操作：check、status、servers、addr <名称>、refresh。",
+    usage: "可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、refresh。\n可使用 \"{command} status\" 或 \"{command}.status\"。",
+    "unknown-action": "未知的 MCSManager 操作 \"{action}\"。可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、refresh。",
     "check-success": "MCSManager 连接检查成功。",
     "check-failed": "MCSManager 连接检查失败：{message}",
-    "status-loading": "正在加载 MCSManager 节点状态……",
     "status-failed": "加载 MCSManager 节点状态失败：{message}",
-    "servers-loading": "正在加载 Minecraft 服务器列表……",
     "servers-failed": "加载 Minecraft 服务器失败：{message}",
+    "servers-invalid-status": "未知的服务器状态 \"{status}\"。可用值：{statuses}。",
     "addr-missing-query": "请提供服务器名称、别名或 ID。",
     "addr-not-found": "没有匹配 \"{name}\" 的 MCSManager 服务器。",
     "addr-ambiguous": "\"{name}\" 匹配到多个服务器：{matches}。",
     "addr-missing-address": "{name} 暂未从 MCSManager 暴露地址。",
-    "refresh-loading": "正在刷新 MCSManager 入口缓存……",
+    "exec-low-authority": "权限不足。",
+    "exec-disabled": "插件配置中已禁用指令执行。",
+    "exec-command-prompt": "请提供要执行的指令。",
+    "exec-command-cancelled": "未输入指令，指令执行已取消。",
+    "exec-no-running-servers": "当前没有可执行指令的运行中 Minecraft 服务器。",
+    "exec-select-server": "请选择要执行指令的运行中服务器：\n{servers}",
+    "exec-select-invalid": "服务器序号无效，请输入 1 到 {total} 之间的数字。",
+    "exec-ambiguous": "\"{name}\" 匹配到多个服务器：{matches}。",
+    "exec-missing-node": "{name} 暂未从 MCSManager 暴露节点 ID。",
+    "exec-not-running": "{name} 当前不是运行中状态：{status}。",
+    "exec-result": "{name} 终端输出：\n{output}",
+    "exec-no-output": "已向 {name} 发送指令，但没有捕获到新增终端输出。",
+    "exec-failed": "执行终端指令失败：{message}",
+    "exec-vote-active": "当前聊天已有指令执行投票，请等待投票结束。",
+    "exec-vote-guild-only": "指令执行投票只能在群聊中使用。",
+    "exec-vote-start": "{name} 指令执行投票：\n{command}\n使用 {voteCommand} yes 同意，{voteCommand} no 否决。\n{progress}",
+    "exec-vote-progress": "投票进度：{progress}",
+    "exec-vote-rejected": "投票未通过，指令执行已取消。",
+    "exec-vote-timeout": "投票超时，指令执行已取消。",
+    "exec-vote-already-voted": "你已经投过票了。",
     "refresh-success": "MCSManager 入口缓存已刷新。",
     "error-unknown": "未知错误",
     render: {
@@ -143,7 +186,8 @@ const zhCN: LocaleMessages = {
       address: "地址",
       status: "状态",
       node: "节点",
-      players: "玩家",
+      players: "在线人数",
+      "player-names": "玩家",
       type: "类型",
       version: "版本",
       motd: "MOTD",
@@ -158,6 +202,7 @@ const zhCN: LocaleMessages = {
       "default-motd": "Minecraft 服务器",
       "instance-counts": "实例 {running} 运行 / {stopped} 停止 / 共 {total}",
       "player-count": "{online}/{max} 在线",
+      "player-list": "玩家: {players}",
       mods: "{count} 个模组",
       "status-labels": {
         running: "运行中",

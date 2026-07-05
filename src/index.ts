@@ -7,7 +7,7 @@ import { defineLocales } from "./locales";
 import { registerPreviewEntry } from "./preview";
 import { registerQQInteractions } from "./qq-interactions";
 
-export const name = "mcsm-portal";
+export const name = "mcsm-portal-pro";
 export const inject = {
   required: ["http"],
   optional: ["console", "puppeteer"],

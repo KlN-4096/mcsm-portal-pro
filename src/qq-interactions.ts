@@ -32,18 +32,19 @@ function registerReactionMirror(ctx: Context, config: Config) {
   const { reactionMirror } = config.qqInteractions;
   if (!reactionMirror.enabled) return;
 
-  const logger = ctx.logger("mcsm-portal");
+  const logger = ctx.logger("mcsm-portal-pro");
   const emojis = new Set(reactionMirror.emojis);
   const dedupe = new Map<string, number>();
   let warnedMissingCapability = false;
 
   ctx.on("reaction-added", async (session) => {
-    if (!matchesReactionEmoji(emojis, session.content)) return;
+    const emojiId = session.content;
+    if (!emojiId || !matchesReactionEmoji(emojis, emojiId)) return;
     if (reactionMirror.ignoreSelf && session.userId === session.selfId) return;
     if (!session.channelId || !session.messageId) {
       logger.warn(
         "cannot mirror QQ reaction %s: missing channelId or messageId",
-        session.content,
+        emojiId,
       );
       return;
     }
@@ -60,7 +61,7 @@ function registerReactionMirror(ctx: Context, config: Config) {
     }
 
     const now = Date.now();
-    const key = `${session.channelId}:${session.messageId}:${session.content}`;
+    const key = `${session.channelId}:${session.messageId}:${emojiId}`;
     if (isCoolingDown(dedupe, key, now, reactionMirror.dedupeTtl)) return;
     markCache(dedupe, key, now, reactionMirror.dedupeTtl);
 
@@ -68,13 +69,13 @@ function registerReactionMirror(ctx: Context, config: Config) {
       await bot.createReaction(
         session.channelId,
         session.messageId,
-        session.content,
+        emojiId,
       );
     } catch (error) {
       dedupe.delete(key);
       logger.warn(
         "failed to mirror QQ reaction %s on message %s: %s",
-        session.content,
+        emojiId,
         session.messageId,
         formatErrorMessage(error),
       );
@@ -92,7 +93,7 @@ function registerAvatarDoubleTap(ctx: Context, config: Config) {
   const { avatarDoubleTap } = config.qqInteractions;
   if (!avatarDoubleTap.enabled) return;
 
-  const logger = ctx.logger("mcsm-portal");
+  const logger = ctx.logger("mcsm-portal-pro");
   const cooldown = new Map<string, number>();
   let warnedMissingCapability = false;
 

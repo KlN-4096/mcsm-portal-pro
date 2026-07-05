@@ -17,6 +17,7 @@ export interface RenderText {
   status: string;
   node: string;
   players: string;
+  playerNames: string;
   type: string;
   version: string;
   motd: string;
@@ -31,6 +32,7 @@ export interface RenderText {
   defaultMotd: string;
   instanceCounts: (running: number, stopped: number, total: number) => string;
   playerCount: (online: number, max: number | string) => string;
+  playerList: (names: string[]) => string;
   mods: (count: number) => string;
   statusLabel: (status: MinecraftInstance["status"]) => string;
 }
@@ -50,7 +52,8 @@ export function createDefaultRenderText(config: Config): RenderText {
     address: "Address",
     status: "Status",
     node: "Node",
-    players: "Players",
+    players: "Online players",
+    playerNames: "Players",
     type: "Type",
     version: "Version",
     motd: "MOTD",
@@ -66,6 +69,7 @@ export function createDefaultRenderText(config: Config): RenderText {
     instanceCounts: (running, stopped, total) =>
       `Instances ${running} running / ${stopped} stopped / ${total} total`,
     playerCount: (online, max) => `${online}/${max} online`,
+    playerList: (names) => `Players: ${names.join(", ")}`,
     mods: (count) => `${count} mods`,
     statusLabel: (status) => status,
   };
@@ -89,6 +93,7 @@ export function createVisualizationLayoutText(
     instances: text.instances,
     platform: text.platform,
     version: text.version,
+    playerNames: text.playerNames,
     unknown: text.unknown,
     noNodesAvailable: text.noNodesAvailable,
     noServersAvailable: text.noServersAvailable,

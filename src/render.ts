@@ -100,6 +100,9 @@ function renderServer(server: MinecraftInstance, fields: ServerFieldVisibility, 
     if (fields.onlineCount && server.onlinePlayers !== undefined) {
       parts.push(text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"));
     }
+    if (fields.playerNames && server.playerNames?.length) {
+      parts.push(text.playerList(server.playerNames));
+    }
     const gameType = resolveGameType(server);
     if (gameType) parts.push(gameType);
     if (fields.version && server.version) parts.push(server.version);
@@ -114,6 +117,9 @@ function renderServer(server: MinecraftInstance, fields: ServerFieldVisibility, 
     fields.address ? formatField(text.address, server.address) : undefined,
     fields.onlineCount && server.onlinePlayers !== undefined
       ? formatField(text.players, text.playerCount(server.onlinePlayers, server.maxPlayers ?? "?"))
+      : undefined,
+    fields.playerNames && server.playerNames?.length
+      ? formatField(text.playerNames, server.playerNames.join(", "))
       : undefined,
     formatField(text.type, resolveGameType(server)),
     fields.version ? formatField(text.version, server.version) : undefined,

@@ -1,9 +1,12 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
+import { executeServerCommand } from "./command-execution";
 import { resolveNodeImageTitle, type Config } from "./config";
+import { formatErrorTemplate } from "./error-message";
 import { renderNodeStatus, renderServerList } from "./render";
 import type { RenderText } from "./render-text";
 import { resolveServerAddress } from "./servers";
+import { filterServersByStatus, formatStatusChoices, resolveStatusFilter } from "./status-filter";
 
 export function registerCommands(ctx: Context, config: Config, client: MCSManagerClient) {
   const commandName = config.command.name.trim() || "mcsm";
@@ -23,13 +26,18 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   ctx.command(`${commandName}.status`, "Show MCSManager node status.", commandOptions)
     .action(({ session }) => showNodeStatus(ctx, session, messageScope, config, client));
 
-  ctx.command(`${commandName}.servers`, "Show Minecraft servers from MCSManager.", commandOptions)
+  ctx.command(`${commandName}.servers [status:text]`, "Show Minecraft servers from MCSManager.", commandOptions)
     .alias(`${commandName}.list`)
-    .action(({ session }) => showMinecraftServers(ctx, session, messageScope, config, client));
+    .action(({ session }, status) => showMinecraftServers(ctx, session, messageScope, config, client, status));
 
   ctx.command(`${commandName}.addr <name:text>`, "Copy a Minecraft server address.", commandOptions)
     .alias(`${commandName}.address`)
-    .action(({ session }, name) => showServerAddress(session, messageScope, client, name));
+    .action(({ session }, name) => showServerAddress(ctx, session, messageScope, config, client, name));
+
+  ctx.command(`${commandName}.exec [input:text]`, "Execute an instance command through the MCSManager terminal.", {
+    authority: config.commandExecution.authority,
+  })
+    .action(({ session }, input) => executeServerCommand(ctx, session, messageScope, config, client, input));
 
   ctx.command(`${commandName}.refresh`, "Refresh cached MCSManager data.", commandOptions)
     .action(({ session }) => refreshCache(session, messageScope, client));
@@ -41,8 +49,9 @@ async function dispatchRootAction(ctx: Context, session: Session, scope: string,
 
   if (action === "check") return checkConnection(session, scope, client);
   if (action === "status") return showNodeStatus(ctx, session, scope, config, client);
-  if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client);
-  if (action === "addr" || action === "address") return showServerAddress(session, scope, client, rest);
+  if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client, rest);
+  if (action === "addr" || action === "address") return showServerAddress(ctx, session, scope, config, client, rest);
+  if (action === "exec") return executeServerCommand(ctx, session, scope, config, client, rest);
   if (action === "refresh") return refreshCache(session, scope, client);
 
   return text(session, scope, "unknown-action", { action });
@@ -59,7 +68,6 @@ async function checkConnection(session: Session, scope: string, client: MCSManag
 
 async function showNodeStatus(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
   try {
-    await sendAcknowledgement(session, scope, "status-loading");
     const nodes = await client.listNodes();
     return renderNodeStatus(ctx, config, nodes, createRenderText(session, scope, config));
   } catch (error) {
@@ -67,17 +75,36 @@ async function showNodeStatus(ctx: Context, session: Session, scope: string, con
   }
 }
 
-async function showMinecraftServers(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient) {
+async function showMinecraftServers(
+  ctx: Context,
+  session: Session,
+  scope: string,
+  config: Config,
+  client: MCSManagerClient,
+  statusInput?: string,
+) {
   try {
-    await sendAcknowledgement(session, scope, "servers-loading");
-    const servers = await client.listMinecraftInstances();
-    return renderServerList(ctx, config, servers, createRenderText(session, scope, config));
+    const parsed = resolveStatusFilter(statusInput, config.minecraft.defaultStatuses);
+    if (!parsed.ok) {
+      return text(session, scope, "servers-invalid-status", {
+        status: statusInput,
+        statuses: formatStatusChoices(),
+      });
+    }
+
+    const servers = config.fields.playerNames
+      ? await client.listMinecraftInstancesWithPlayerList()
+      : await client.listMinecraftInstances();
+    const visibleServers = filterServersByStatus(servers, parsed.filter);
+    return renderServerList(ctx, config, visibleServers, createRenderText(session, scope, config));
   } catch (error) {
-    return text(session, scope, "servers-failed", { message: formatErrorMessage(session, scope, error) });
+    const message = formatErrorMessage(session, scope, error);
+    ctx.logger("mcsm-portal-pro").warn("minecraft server list failed: %s", message);
+    return formatServersFailedMessage(session, scope, config, message);
   }
 }
 
-async function showServerAddress(session: Session, scope: string, client: MCSManagerClient, name?: string) {
+async function showServerAddress(ctx: Context, session: Session, scope: string, config: Config, client: MCSManagerClient, name?: string) {
   try {
     const servers = await client.listMinecraftInstances();
     const result = resolveServerAddress(servers, name);
@@ -94,22 +121,15 @@ async function showServerAddress(session: Session, scope: string, client: MCSMan
     }
     return result.server.address;
   } catch (error) {
-    return text(session, scope, "servers-failed", { message: formatErrorMessage(session, scope, error) });
+    const message = formatErrorMessage(session, scope, error);
+    ctx.logger("mcsm-portal-pro").warn("minecraft server address lookup failed: %s", message);
+    return formatServersFailedMessage(session, scope, config, message);
   }
 }
 
 async function refreshCache(session: Session, scope: string, client: MCSManagerClient) {
-  await sendAcknowledgement(session, scope, "refresh-loading");
   client.clearCache();
   return text(session, scope, "refresh-success");
-}
-
-function sendAcknowledgement(
-  session: Session,
-  scope: string,
-  key: string,
-) {
-  return session.send(text(session, scope, key));
 }
 
 function createRenderText(session: Session, scope: string, config: Config): RenderText {
@@ -128,6 +148,7 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
     status: text(session, scope, "render.status"),
     node: text(session, scope, "render.node"),
     players: text(session, scope, "render.players"),
+    playerNames: text(session, scope, "render.player-names"),
     type: text(session, scope, "render.type"),
     version: text(session, scope, "render.version"),
     motd: text(session, scope, "render.motd"),
@@ -142,6 +163,7 @@ function createRenderText(session: Session, scope: string, config: Config): Rend
     defaultMotd: text(session, scope, "render.default-motd"),
     instanceCounts: (running, stopped, total) => text(session, scope, "render.instance-counts", { running, stopped, total }),
     playerCount: (online, max) => text(session, scope, "render.player-count", { online, max }),
+    playerList: (names) => text(session, scope, "render.player-list", { players: names.join(", ") }),
     mods: (count) => text(session, scope, "render.mods", { count }),
     statusLabel: (status) => text(session, scope, `render.status-labels.${status}`),
   };
@@ -151,6 +173,11 @@ function formatErrorMessage(session: Session, scope: string, error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   return text(session, scope, "error-unknown");
+}
+
+function formatServersFailedMessage(session: Session, scope: string, config: Config, message: string) {
+  return formatErrorTemplate(config.errorMessages.serversFailed, { message })
+    ?? text(session, scope, "servers-failed", { message });
 }
 
 function text(session: Session, scope: string, key: string, params?: object) {

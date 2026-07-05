@@ -62,6 +62,8 @@ export const CONFIG_LOCALES = {
       $desc: "Minecraft 实例发现",
       pageSize: "每次从每个 MCSManager 节点请求的实例数量。",
       typeKeywords: "被视为 Minecraft 服务器的实例类型关键词。",
+      defaultStatuses:
+        "未在命令中指定状态时，服务器列表默认显示的实例状态。默认只显示运行中实例；留空则显示全部状态。",
       latencyFallback: {
         $desc: "远程延迟测试服务。",
         $inner: {
@@ -76,10 +78,33 @@ export const CONFIG_LOCALES = {
       latencyFallbackKeys:
         "用于从服务 JSON 响应中读取延迟的键路径。支持点路径，例如 data.ping。",
     },
+    commandExecution: {
+      $desc: "命令执行",
+      enabled: "允许通过 MCSManager 实例终端执行聊天指令。",
+      authority: "执行实例指令所需的最低权限等级。",
+      selectionTimeout: "交互式选择服务器的等待时间，单位为毫秒。",
+      commandTimeout: "交互式输入指令的等待时间，单位为毫秒。",
+      maxResultLength: "返回到聊天中的指令结果最大长度。",
+      voting: {
+        $desc: "执行投票",
+        enabled: "执行实例指令前要求聊天投票通过。",
+        approveCount: "投票通过所需的同意人数。",
+        timeout: "投票超时时间，单位为毫秒。",
+        command: "投票命令。用户使用该命令加 yes 或 no 回复。",
+      },
+    },
+    errorMessages: {
+      $desc: "错误提示",
+      serversFailed:
+        "Minecraft 服务器列表加载失败时的自定义提示。支持 {message}；留空使用内置文案。",
+      execFailed:
+        "终端指令执行失败时的自定义提示。支持 {message} 和 {name}；留空使用内置文案。",
+    },
     fields: {
       $desc: "服务器列表字段",
       address: "显示服务器地址。",
       onlineCount: "显示在线玩家数量。",
+      playerNames: "显示 MCSManager 终端 list 指令返回的在线玩家名单。",
       status: "显示实例状态。",
       node: "显示节点名称。",
       version: "显示 Minecraft 版本。",

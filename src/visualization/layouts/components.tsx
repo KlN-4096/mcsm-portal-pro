@@ -32,19 +32,25 @@ export function ImageTitleBlock(props: {
   return (
     <div
       className={cn(
-        "flex flex-col",
-        props.centered ? "items-center" : "items-start",
+        "flex flex-col gap-1",
+        props.centered ? "items-center text-center" : "items-start",
       )}
     >
-      <p className={cn("m-0 font-minecraft-five text-sm mb-2")}>
-        <FormattedText text={props.brand ?? ""} />
-      </p>
-      <h3 className="m-0 font-minecraft-ten text-[30px] font-normal leading-normal">
-        <FormattedText text={props.title ?? ""} />
-      </h3>
-      <span className="font-minecraft text-base opacity-80">
-        {props.subtitle}
-      </span>
+      {props.brand ? (
+        <p className="m-0 font-minecraft-five text-[10px] leading-none opacity-75">
+          <FormattedText text={props.brand} />
+        </p>
+      ) : null}
+      {props.title ? (
+        <h3 className="m-0 max-w-full break-words font-minecraft-ten text-[30px] font-normal leading-none">
+          <FormattedText text={props.title} />
+        </h3>
+      ) : null}
+      {props.subtitle ? (
+        <span className="block max-w-full break-words font-minecraft text-sm leading-none opacity-80">
+          {props.subtitle}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -230,6 +236,12 @@ export function formatPlayers(server: MinecraftInstance, unknown = "unknown") {
     return unknown;
   }
   return `${server.onlinePlayers ?? "?"}/${server.maxPlayers ?? "?"}`;
+}
+
+export function formatPlayerNames(server: MinecraftInstance, label: string) {
+  return server.playerNames?.length
+    ? `${label}: ${server.playerNames.join(", ")}`
+    : undefined;
 }
 
 export function serverLatencyLabel(

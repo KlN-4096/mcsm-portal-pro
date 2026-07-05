@@ -11,6 +11,7 @@ export interface VisualizationLayoutText {
   instances: string;
   platform: string;
   version: string;
+  playerNames: string;
   unknown: string;
   noNodesAvailable: string;
   noServersAvailable: string;

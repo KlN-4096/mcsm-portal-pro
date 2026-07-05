@@ -1,22 +1,24 @@
 import type { MinecraftInstance, ServerAddress } from "./types";
 
-type ResolveResult =
+type ResolveAddressResult =
   | { type: "missing-query" }
   | { type: "not-found" }
   | { type: "ambiguous"; matches: ServerAddress[] }
   | { type: "matched"; server: ServerAddress };
 
-export function resolveServerAddress(servers: MinecraftInstance[], query?: string): ResolveResult {
+export function resolveServerAddress(servers: MinecraftInstance[], query?: string): ResolveAddressResult {
   const normalizedQuery = normalizeLookupKey(query);
   if (!normalizedQuery) return { type: "missing-query" };
 
-  const matches = servers
-    .filter((server) => getLookupKeys(server).includes(normalizedQuery))
-    .map(toServerAddress);
+  const matchedServers = servers.filter((server) =>
+    getLookupKeys(server).includes(normalizedQuery)
+  );
 
-  if (!matches.length) return { type: "not-found" };
-  if (matches.length > 1) return { type: "ambiguous", matches };
-  return { type: "matched", server: matches[0] };
+  if (!matchedServers.length) return { type: "not-found" };
+  if (matchedServers.length > 1) {
+    return { type: "ambiguous", matches: matchedServers.map(toServerAddress) };
+  }
+  return { type: "matched", server: toServerAddress(matchedServers[0]) };
 }
 
 function getLookupKeys(server: MinecraftInstance) {

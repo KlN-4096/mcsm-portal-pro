@@ -28,7 +28,7 @@ export function registerPreviewEntry(ctx: Context, config: Config, client: MCSMa
   const console = (ctx as ConsoleContext).console;
   if (!console) return;
 
-  console.addListener("mcsm-portal/preview-data", async () => {
+  console.addListener("mcsm-portal-pro/preview-data", async () => {
     if (!client.configured) {
       return {
         ok: false,

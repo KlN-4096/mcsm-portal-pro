@@ -70,6 +70,7 @@ interface MinecraftInstance {
   latencyMs?: number;
   onlinePlayers?: number;
   maxPlayers?: number;
+  playerNames?: string[];
   version?: string;
   motd?: string;
   motdSegments?: MinecraftTextSegment[];
@@ -96,6 +97,7 @@ interface VisualizationLayoutText {
   instances: string;
   platform: string;
   version: string;
+  playerNames: string;
   unknown: string;
   noNodesAvailable: string;
   noServersAvailable: string;
@@ -180,6 +182,7 @@ const previewMessages = {
     instances: "Instances",
     platform: "Platform",
     version: "Version",
+    playerNames: "Players",
     unknown: "unknown",
     noNodesAvailable: "No nodes available",
     noServersAvailable: "No servers available",
@@ -234,6 +237,7 @@ const previewMessages = {
     instances: "实例",
     platform: "平台",
     version: "版本",
+    playerNames: "玩家",
     unknown: "未知",
     noNodesAvailable: "没有可用节点",
     noServersAvailable: "没有可用服务器",
@@ -321,6 +325,7 @@ const PreviewPage = defineComponent({
         instances: t("instances"),
         platform: t("platform"),
         version: t("version"),
+        playerNames: t("playerNames"),
         unknown: t("unknown"),
         noNodesAvailable: t("noNodesAvailable"),
         noServersAvailable: t("noServersAvailable"),
@@ -364,7 +369,7 @@ const PreviewPage = defineComponent({
       realError.value = "";
       try {
         const response = (await send(
-          "mcsm-portal/preview-data",
+          "mcsm-portal-pro/preview-data",
         )) as RealPreviewResponse;
         if (!response.ok || !response.data) {
           realError.value = response.error ?? t("realFailed");
@@ -788,8 +793,8 @@ const ReactLayoutHost = defineComponent<{
 
 export default defineExtension((ctx) => {
   ctx.page({
-    id: "mcsm-portal-preview",
-    path: "/mcsm-portal/preview",
+    id: "mcsm-portal-pro-preview",
+    path: "/mcsm-portal-pro/preview",
     name: "MCSM Portal Preview",
     icon: "activity:default",
     component: PreviewPage,

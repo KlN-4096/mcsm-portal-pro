@@ -63,7 +63,7 @@ function requestStatus(host: string, port: number, timeout: number) {
 
     socket.setTimeout(timeout, () => finish(new Error(`Minecraft status query timed out for ${host}:${port}.`)));
     socket.once("error", (error) => finish(error));
-    socket.on("data", (chunk) => {
+    socket.on("data", (chunk: Buffer) => {
       chunks.push(chunk);
       const parsed = tryParseStatusPacket(Buffer.concat(chunks));
       if (parsed !== undefined) finish(undefined, parsed);

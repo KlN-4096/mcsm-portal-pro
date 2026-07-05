@@ -244,5 +244,9 @@ function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: Visualizatio
     return 190 + Math.max(data.nodes.length, 1) * 210;
   }
   if (!data.servers.length) return 480;
-  return 220 + data.servers.length * 112;
+  const playerNameRows = data.servers.reduce((rows, server) => {
+    const namesLength = server.playerNames?.join(", ").length ?? 0;
+    return rows + Math.max(0, Math.ceil(namesLength / 72) - 1);
+  }, 0);
+  return 220 + data.servers.length * 112 + playerNameRows * 16;
 }

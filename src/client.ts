@@ -4,7 +4,14 @@ import type {
   LatencyFallbackServiceConfig,
   MinecraftConfig,
 } from "./config";
+import { parseMinecraftListOutput } from "./minecraft-list-output";
 import { parseMinecraftAddress, queryMinecraftStatus } from "./minecraft-status";
+import {
+  captureMarkedLogLines,
+  describeMarkedLogCapture,
+  limitOutput,
+  logContainsMarkerSince,
+} from "./terminal-log";
 import type {
   InstanceStatus,
   MCSManagerResponse,
@@ -17,9 +24,22 @@ interface CacheEntry<T> {
   value: T;
 }
 
+const PLAYER_LIST_COMMAND = "list";
+const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
+const PLAYER_LIST_CONCURRENCY = 3;
+const COMMAND_OUTPUT_LOG_SIZE = 65536;
+const COMMAND_LOG_WINDOW_LINES = 10000;
+const COMMAND_OUTPUT_WAIT_MS = 20000;
+const COMMAND_OUTPUT_POLL_INTERVAL_MS = 500;
+const COMMAND_MARKER_SETTLE_MS = 1000;
+const COMMAND_MARKER_NAMESPACE = "mcsm_portal";
+
 export class MCSManagerClient {
   private nodesCache?: CacheEntry<NodeStatus[]>;
   private minecraftInstancesCache?: CacheEntry<MinecraftInstance[]>;
+  private minecraftInstancesWithPlayerListCache?: CacheEntry<MinecraftInstance[]>;
+  private instanceCommandQueues = new Map<string, Promise<unknown>>();
+  private playerListUnavailableInstances = new Set<string>();
 
   constructor(
     private ctx: Context,
@@ -98,6 +118,19 @@ export class MCSManagerClient {
     return instances;
   }
 
+  async listMinecraftInstancesWithPlayerList() {
+    const cached = this.readCache(this.minecraftInstancesWithPlayerListCache);
+    if (cached) {
+      this.debug("minecraft instances player list cache hit", { count: cached.length });
+      return cached;
+    }
+
+    const instances = await this.listMinecraftInstances();
+    const withPlayerList = await this.enrichMinecraftPlayerLists(instances);
+    this.minecraftInstancesWithPlayerListCache = this.writeCache(withPlayerList);
+    return withPlayerList;
+  }
+
   async listInstances() {
     const nodes = await this.listNodes();
     try {
@@ -105,7 +138,7 @@ export class MCSManagerClient {
       this.debug("global instance endpoint loaded", { count: fromGlobal.length });
       if (fromGlobal.length) return fromGlobal;
     } catch (error) {
-      this.ctx.logger("mcsm-portal").warn("global instance endpoint failed, falling back to per-node queries: %s", formatErrorMessage(error));
+      this.ctx.logger("mcsm-portal-pro").warn("global instance endpoint failed, falling back to per-node queries: %s", formatErrorMessage(error));
     }
 
     this.debug("loading instances per node", { nodes: nodes.map((node) => node.id) });
@@ -115,9 +148,85 @@ export class MCSManagerClient {
     return instances;
   }
 
+  async executeInstanceCommand(
+    instance: MinecraftInstance,
+    command: string,
+    maxLength: number,
+  ) {
+    if (!instance.nodeId) throw new Error("MCSManager daemon ID is missing for this instance.");
+    return this.runInstanceCommandExclusive(instance, () =>
+      this.executeMarkedInstanceCommand(instance, command, maxLength),
+    );
+  }
+
+  private async executeMarkedInstanceCommand(
+    instance: MinecraftInstance,
+    command: string,
+    maxLength: number,
+  ) {
+    const nonce = createCommandNonce();
+    const beginMarker = createCommandMarker("begin", nonce);
+    const endMarker = createCommandMarker("end", nonce);
+    const before = await this.getInstanceOutputLog(instance);
+    await this.sendInstanceCommand(instance, createMarkerCommand(beginMarker));
+    await this.waitForLogMarker(instance, before, beginMarker);
+    await sleep(COMMAND_MARKER_SETTLE_MS);
+    const commandBaseline = await this.getInstanceOutputLog(instance);
+    await this.sendInstanceCommand(instance, command);
+    await this.sendInstanceCommand(instance, createMarkerCommand(endMarker));
+    const afterEnd = await this.waitForLogMarker(instance, commandBaseline, endMarker);
+    const lines = captureMarkedLogLines({
+      before: commandBaseline,
+      log: afterEnd,
+      beginMarker,
+      endMarker,
+      ignoredMarkers: [beginMarker, endMarker],
+      windowLines: COMMAND_LOG_WINDOW_LINES,
+    });
+    if (!lines) {
+      this.debug("terminal command capture failed", {
+        id: instance.id,
+        name: instance.name,
+        ...describeMarkedLogCapture({
+          before: commandBaseline,
+          log: afterEnd,
+          beginMarker,
+          endMarker,
+          ignoredMarkers: [beginMarker, endMarker],
+          windowLines: COMMAND_LOG_WINDOW_LINES,
+        }),
+      });
+      throw new Error("Failed to capture terminal output between command markers.");
+    }
+
+    return limitOutput(lines.join("\n").trim(), maxLength);
+  }
+
+  private async waitForLogMarker(
+    instance: MinecraftInstance,
+    baseline: string | null,
+    marker: string,
+  ) {
+    const deadline = Date.now() + COMMAND_OUTPUT_WAIT_MS;
+    while (Date.now() < deadline) {
+      await sleep(COMMAND_OUTPUT_POLL_INTERVAL_MS);
+      const after = await this.getInstanceOutputLog(instance);
+      if (logContainsMarkerSince(
+        baseline,
+        after,
+        marker,
+        COMMAND_LOG_WINDOW_LINES,
+      )) return after;
+    }
+
+    throw new TerminalMarkerTimeoutError();
+  }
+
   clearCache() {
     this.nodesCache = undefined;
     this.minecraftInstancesCache = undefined;
+    this.minecraftInstancesWithPlayerListCache = undefined;
+    this.playerListUnavailableInstances.clear();
     this.debug("cache cleared");
   }
 
@@ -164,9 +273,9 @@ export class MCSManagerClient {
     const pageSize = this.minecraft.pageSize;
     const instances: MinecraftInstance[] = [];
     let page = 1;
-    let total: number | undefined;
+    let hasNextPage = true;
 
-    do {
+    while (hasNextPage && page <= 100) {
       const payload = await this.request<unknown>("/api/service/remote_service_instances", {
         daemonId: node.id,
         page,
@@ -177,19 +286,26 @@ export class MCSManagerClient {
       });
       const result = normalizeInstancePage(payload, node, this.getPublicHost(node));
       instances.push(...result.instances);
-      total = result.total ?? (result.maxPage !== undefined ? result.maxPage * pageSize : undefined);
+      if (result.maxPage !== undefined) {
+        hasNextPage = page < result.maxPage;
+      } else if (result.total !== undefined) {
+        hasNextPage = instances.length < result.total;
+      } else {
+        hasNextPage = result.instances.length >= pageSize;
+      }
       this.debug("node instance page loaded", {
         nodeId: node.id,
         nodeName: node.name,
         page,
         pageSize,
         maxPage: result.maxPage,
-        total,
+        total: result.total,
+        hasNextPage,
         count: result.instances.length,
         instances: result.instances.map((instance) => describeInstance(instance)),
       });
       page += 1;
-    } while (total !== undefined && instances.length < total && page <= 100);
+    }
 
     return instances;
   }
@@ -263,6 +379,87 @@ export class MCSManagerClient {
         return instance;
       }
     });
+  }
+
+  private async enrichMinecraftPlayerLists(instances: MinecraftInstance[]) {
+    return mapConcurrent(instances, PLAYER_LIST_CONCURRENCY, async (instance) => {
+      if (instance.status !== "running" || !instance.nodeId) {
+        return instance;
+      }
+      if (this.playerListUnavailableInstances.has(getInstanceCommandKey(instance))) {
+        this.debug("minecraft player list skipped for terminal-incompatible instance", {
+          id: instance.id,
+          name: instance.name,
+        });
+        return instance;
+      }
+
+      try {
+        const output = await this.executeInstanceCommand(
+          instance,
+          PLAYER_LIST_COMMAND,
+          PLAYER_LIST_MAX_RESULT_LENGTH,
+        );
+        const list = parseMinecraftListOutput(output);
+        if (!list) return instance;
+        return {
+          ...instance,
+          onlinePlayers: list.onlinePlayers ?? instance.onlinePlayers,
+          maxPlayers: list.maxPlayers ?? instance.maxPlayers,
+          playerNames: list.playerNames ?? instance.playerNames,
+        };
+      } catch (error) {
+        if (error instanceof TerminalMarkerTimeoutError) {
+          this.playerListUnavailableInstances.add(getInstanceCommandKey(instance));
+          this.debug("minecraft player list disabled after terminal marker timeout", {
+            id: instance.id,
+            name: instance.name,
+          });
+        }
+        this.ctx.logger("mcsm-portal-pro").warn(
+          "minecraft list command failed: instance=%s name=%s message=%s",
+          instance.id,
+          instance.name,
+          formatErrorMessage(error),
+        );
+        return instance;
+      }
+    });
+  }
+
+  private async sendInstanceCommand(instance: MinecraftInstance, command: string) {
+    await this.request<unknown>("/api/protected_instance/command", {
+      daemonId: instance.nodeId!,
+      uuid: instance.id,
+      command,
+    });
+  }
+
+  private async getInstanceOutputLog(instance: MinecraftInstance) {
+    const output = await this.request<unknown>("/api/protected_instance/outputlog", {
+      daemonId: instance.nodeId!,
+      uuid: instance.id,
+      size: COMMAND_OUTPUT_LOG_SIZE,
+    });
+    return extractOutputLogText(output);
+  }
+
+  private async runInstanceCommandExclusive<T>(
+    instance: MinecraftInstance,
+    task: () => Promise<T>,
+  ) {
+    const key = getInstanceCommandKey(instance);
+    const previous = this.instanceCommandQueues.get(key) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(task);
+    this.instanceCommandQueues.set(key, current);
+
+    try {
+      return await current;
+    } finally {
+      if (this.instanceCommandQueues.get(key) === current) {
+        this.instanceCommandQueues.delete(key);
+      }
+    }
   }
 
   private async resolveLatency(
@@ -399,9 +596,9 @@ export class MCSManagerClient {
   private debug(message: string, data?: unknown) {
     if (!this.debugEnabled) return;
     if (data === undefined) {
-      this.ctx.logger("mcsm-portal").info("[debug] %s", message);
+      this.ctx.logger("mcsm-portal-pro").info("[debug] %s", message);
     } else {
-      this.ctx.logger("mcsm-portal").info("[debug] %s %o", message, data);
+      this.ctx.logger("mcsm-portal-pro").info("[debug] %s %o", message, data);
     }
   }
 }
@@ -477,9 +674,15 @@ function normalizeLatencyNumber(value: unknown) {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined;
 }
 
+function extractOutputLogText(value: unknown) {
+  if (typeof value === "string") return value;
+  const record = toRecord(value);
+  const data = record?.data;
+  return typeof data === "string" ? data : "";
+}
+
 function unwrapResponse<T>(response: MCSManagerResponse<T> | T) {
   if (!isRecord(response)) return response as T;
-  if (!("status" in response) || !("data" in response)) return response as T;
 
   const status = readNumber(response, "status");
   if (status !== undefined && status >= 400) {
@@ -487,13 +690,40 @@ function unwrapResponse<T>(response: MCSManagerResponse<T> | T) {
     throw new Error(message);
   }
 
+  if (!("data" in response)) return response as T;
   return response.data as T;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+class TerminalMarkerTimeoutError extends Error {
+  constructor() {
+    super("Timed out waiting for the MCSManager terminal marker.");
+  }
+}
+
+function getInstanceCommandKey(instance: MinecraftInstance) {
+  return `${instance.nodeId}:${instance.id}`;
+}
+
+function createCommandNonce() {
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createCommandMarker(kind: "begin" | "end", nonce: string) {
+  return `${COMMAND_MARKER_NAMESPACE}:${kind}_${nonce}`;
+}
+
+function createMarkerCommand(marker: string) {
+  return `data get storage ${marker}`;
 }
 
 function sanitizeParams(params: Record<string, string | number | boolean>, apiKeyParam: string) {
   return Object.fromEntries(Object.entries(params).map(([key, value]) => [
     key,
-    key === apiKeyParam ? "<redacted>" : value,
+    key === apiKeyParam || key === "command" ? "<redacted>" : value,
   ]));
 }
 
