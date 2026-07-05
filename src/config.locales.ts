@@ -90,6 +90,8 @@ export const CONFIG_LOCALES = {
         enabled: "执行实例指令前要求聊天投票通过。",
         approveCount: "投票通过所需的同意人数。",
         timeout: "投票超时时间，单位为毫秒。",
+        presentation:
+          "投票进度展示方式。auto 会在 QQ 官方机器人中使用按钮，否则使用图片；qq-button 在非 QQ 官方机器人中会回退为图片。",
         command: "投票命令。用户使用该命令加 yes 或 no 回复。",
       },
     },

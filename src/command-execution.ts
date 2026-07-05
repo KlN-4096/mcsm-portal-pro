@@ -1,8 +1,9 @@
 import type { Context, Session } from "koishi";
 import type { MCSManagerClient } from "./client";
-import type { CommandExecutionVotingConfig, Config } from "./config";
+import type { Config } from "./config";
 import { formatErrorTemplate } from "./error-message";
 import type { MinecraftInstance } from "./types";
+import { requestExecutionVote } from "./command-voting";
 
 type TextResolver = (key: string, params?: object) => string;
 
@@ -12,9 +13,17 @@ type DirectTarget =
   | { type: "message"; message: string }
   | { type: "ambiguous"; matches: MinecraftInstance[] };
 
-type VoteOutcome = "passed" | "rejected" | "timeout";
+type ExecutionRequest =
+  | { type: "ready"; server: MinecraftInstance; command: string }
+  | { type: "message"; message: string };
 
-const activeVoteGroups = new Set<string>();
+interface ResolveExecutionRequestOptions {
+  session: Session;
+  t: TextResolver;
+  config: Config;
+  client: MCSManagerClient;
+  input?: string;
+}
 
 export async function executeServerCommand(
   ctx: Context,
@@ -33,33 +42,20 @@ export async function executeServerCommand(
 
   let targetName: string | undefined;
   try {
-    const servers = await client.listMinecraftInstances();
-    const target = await resolveExecutionTarget(session, t, execution.selectionTimeout, servers, input);
-    if (target.type === "message") return target.message;
-    if (target.type === "ambiguous") {
-      return t("exec-ambiguous", {
-        name: input,
-        matches: target.matches.map((server) => server.name).join(", "),
-      });
-    }
-    if (!target.server.nodeId) return t("exec-missing-node", { name: target.server.name });
-    if (target.server.status !== "running") {
-      return t("exec-not-running", { name: target.server.name, status: target.server.status });
-    }
-    targetName = target.server.name;
-    const command = await resolveExecutionCommand(session, t, execution.commandTimeout, target.command);
-    if (!command) return t("exec-command-cancelled");
-    const approved = await requestExecutionVote(ctx, session, t, config, target.server, command);
+    const request = await resolveExecutionRequest({ session, t, config, client, input });
+    if (request.type === "message") return request.message;
+    targetName = request.server.name;
+    const approved = await requestExecutionVote(ctx, session, t, config, request.server, request.command);
     if (approved !== true) return approved;
 
     const output = await client.executeInstanceCommand(
-      target.server,
-      command,
+      request.server,
+      request.command,
       config.commandExecution.maxResultLength,
     );
     return output
-      ? t("exec-result", { name: target.server.name, output })
-      : t("exec-no-output", { name: target.server.name });
+      ? t("exec-result", { name: request.server.name, output })
+      : t("exec-no-output", { name: request.server.name });
   } catch (error) {
     const message = formatErrorMessage(t, error);
     ctx.logger("mcsm-portal-pro").warn(
@@ -72,6 +68,45 @@ export async function executeServerCommand(
       name: targetName,
     }) ?? t("exec-failed", { message });
   }
+}
+
+async function resolveExecutionRequest(
+  options: ResolveExecutionRequestOptions,
+): Promise<ExecutionRequest> {
+  const execution = options.config.commandExecution;
+  const servers = await options.client.listMinecraftInstances();
+  const target = await resolveExecutionTarget(
+    options.session,
+    options.t,
+    execution.selectionTimeout,
+    servers,
+    options.input,
+  );
+  if (target.type === "message") return target;
+  if (target.type === "ambiguous") {
+    return {
+      type: "message",
+      message: options.t("exec-ambiguous", {
+        name: options.input,
+        matches: target.matches.map((server) => server.name).join(", "),
+      }),
+    };
+  }
+  if (!target.server.nodeId) {
+    return { type: "message", message: options.t("exec-missing-node", { name: target.server.name }) };
+  }
+  if (target.server.status !== "running") {
+    return { type: "message", message: options.t("exec-not-running", target.server) };
+  }
+  const command = await resolveExecutionCommand(
+    options.session,
+    options.t,
+    execution.commandTimeout,
+    target.command,
+  );
+  return command
+    ? { type: "ready", server: target.server, command }
+    : { type: "message", message: options.t("exec-command-cancelled") };
 }
 
 async function resolveExecutionTarget(
@@ -146,102 +181,6 @@ async function resolveExecutionCommand(
   await session.send(t("exec-command-prompt"));
   const answer = await session.prompt(timeout);
   return answer?.trim();
-}
-
-async function requestExecutionVote(
-  ctx: Context,
-  session: Session,
-  t: TextResolver,
-  config: Config,
-  server: MinecraftInstance,
-  command: string,
-) {
-  const voting = config.commandExecution.voting;
-  if (!voting.enabled || voting.approveCount <= 1) return true;
-  const groupId = session.guildId;
-  if (!groupId) return t("exec-vote-guild-only");
-  if (activeVoteGroups.has(groupId)) return t("exec-vote-active");
-
-  activeVoteGroups.add(groupId);
-  try {
-    const outcome = await waitForVote(ctx, session, t, voting, server, command);
-    if (outcome === "passed") return true;
-    return t(outcome === "timeout" ? "exec-vote-timeout" : "exec-vote-rejected");
-  } finally {
-    activeVoteGroups.delete(groupId);
-  }
-}
-
-function waitForVote(
-  ctx: Context,
-  session: Session,
-  t: TextResolver,
-  vote: CommandExecutionVotingConfig,
-  server: MinecraftInstance,
-  command: string,
-) {
-  return new Promise<VoteOutcome>((resolve) => {
-    const voters = new Set<string>(session.userId ? [session.userId] : []);
-    let approvals = voters.size;
-    const cleanup = createVoteCleanup(vote.timeout, resolve);
-
-    session.send(t("exec-vote-start", {
-      name: server.name,
-      command,
-      voteCommand: vote.command,
-      progress: formatVoteProgress(approvals, vote.approveCount),
-    }));
-
-    cleanup.dispose = ctx.middleware(async (voteSession, next) => {
-      if (voteSession.guildId !== session.guildId) return next();
-      const decision = parseVoteDecision(voteSession.content, vote.command);
-      if (!decision) return next();
-      if (voteSession.userId && voters.has(voteSession.userId)) {
-        await voteSession.send(t("exec-vote-already-voted"));
-        return next();
-      }
-      if (decision === "no") return cleanup.finish("rejected");
-
-      if (voteSession.userId) voters.add(voteSession.userId);
-      approvals += 1;
-      if (approvals >= vote.approveCount) {
-        return cleanup.finish("passed");
-      }
-      await voteSession.send(t("exec-vote-progress", {
-        progress: formatVoteProgress(approvals, vote.approveCount),
-      }));
-      return next();
-    });
-  });
-}
-
-function createVoteCleanup(
-  timeout: number,
-  resolve: (value: VoteOutcome) => void,
-) {
-  const cleanup: { dispose?: () => void; finish: (value: VoteOutcome) => void } = {
-    finish(value) {
-      clearTimeout(timer);
-      cleanup.dispose?.();
-      resolve(value);
-    },
-  };
-  const timer = setTimeout(() => cleanup.finish("timeout"), timeout);
-  return cleanup;
-}
-
-function parseVoteDecision(content: string, command: string) {
-  const [head, decision] = content.trim().split(/\s+/);
-  if (head !== command) return;
-  const normalized = decision?.toLowerCase();
-  if (["yes", "y", "同意", "赞成"].includes(normalized)) return "yes";
-  if (["no", "n", "否", "反对"].includes(normalized)) return "no";
-}
-
-function formatVoteProgress(approvals: number, required: number) {
-  const approved = "◆ ".repeat(Math.min(approvals, required));
-  const pending = "◇ ".repeat(Math.max(0, required - approvals));
-  return `${approved}${pending}`.trim();
 }
 
 function formatErrorMessage(t: TextResolver, error: unknown) {

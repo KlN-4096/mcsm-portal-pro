@@ -21,7 +21,7 @@ import { resolveBackgroundTextureChoice } from "./visualization/styles";
 import { formatKoishiDate } from "./time";
 import { PLUGIN_VERSION } from "./version";
 
-export type VisualizationSurface = "node-status" | "server-list";
+export type VisualizationSurface = "node-status" | "server-list" | "execution-vote";
 
 export interface CodeAuthoredLayoutDefinition {
   id: string;

@@ -3,33 +3,30 @@
 import { h, type Context } from "koishi";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import {
-  DEFAULT_COPYRIGHT_TEXT,
-  resolveNodeImageTitle,
-  resolvePortalTitle,
-  resolveServerImageTitle,
-  type Config,
-} from "../config";
+import type { Config } from "../config";
 import type { MinecraftInstance, NodeStatus } from "../types";
 import {
   createDefaultRenderText,
   createVisualizationLayoutText,
   type RenderText,
 } from "../render-text";
-import { formatKoishiDate } from "../time";
 import {
   codeAuthoredLayouts,
   type CodeAuthoredLayoutDefinition,
   withImageWidth,
 } from "../visualization";
-import { PLUGIN_VERSION } from "../version";
-import { NodeStatusLayout, ServerListLayout, type VisualizationLayoutData } from "./layouts";
+import {
+  NodeStatusLayout,
+  ServerListLayout,
+  type ExecutionVoteLayoutData,
+  type VisualizationLayoutData,
+} from "./layouts";
+import { createVisualizationDataBase } from "./render-base";
 import { createVisualizationCss } from "./styles";
-import { resolveBackgroundTextureChoice } from "./styles";
 
 export interface VisualizationRenderResult {
   layout: CodeAuthoredLayoutDefinition;
-  data: VisualizationLayoutData;
+  data: VisualizationLayoutData | ExecutionVoteLayoutData;
   html: string;
   width: number;
   height: number;
@@ -196,21 +193,9 @@ export function createVisualizationData(
   servers: MinecraftInstance[],
   text: RenderText = createDefaultRenderText(config),
 ): VisualizationLayoutData {
-  const backgroundTexture = resolveBackgroundTextureChoice(
-    config.image.backgroundTexture,
-  );
+  const base = createVisualizationDataBase(config);
   return {
-    portalName: resolvePortalTitle(config),
-    copyright: DEFAULT_COPYRIGHT_TEXT,
-    pluginVersion: PLUGIN_VERSION,
-    nodeTitle: resolveNodeImageTitle(config),
-    serverTitle: resolveServerImageTitle(config),
-    showGeneratedAt: config.image.showGeneratedAt,
-    generatedAt: config.image.showGeneratedAt
-      ? formatKoishiDate(new Date())
-      : undefined,
-    backgroundTexture: backgroundTexture.name || undefined,
-    backgroundTile: backgroundTexture.dataUri,
+    ...base,
     text: createVisualizationLayoutText(text, nodes, servers),
     nodes,
     servers,

@@ -91,6 +91,7 @@ export interface CommandExecutionVotingConfig {
   enabled: boolean;
   approveCount: number;
   timeout: number;
+  presentation: "auto" | "qq-button" | "image";
   command: string;
 }
 
@@ -215,6 +216,7 @@ const DEFAULT_COMMAND_EXECUTION_CONFIG: CommandExecutionConfig = {
     enabled: false,
     approveCount: 2,
     timeout: 60000,
+    presentation: "auto",
     command: "mcsm.vote",
   },
 };
@@ -489,6 +491,13 @@ export const Config = Schema.intersect([
           .description("Vote timeout in milliseconds.")
           .min(1000)
           .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout),
+        presentation: Schema.union([
+          Schema.const("auto").description("QQ buttons when available, otherwise image"),
+          Schema.const("qq-button").description("QQ official bot buttons"),
+          Schema.const("image").description("Image progress"),
+        ] as const)
+          .description("Vote progress presentation.")
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.presentation),
         command: Schema.string()
           .description("Vote command. Users reply with this command plus yes or no.")
           .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.command),
@@ -704,6 +713,9 @@ export function createRuntimeConfig(config: ConfigInput): Config {
         timeout:
           config.commandExecution?.voting?.timeout ??
           DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout,
+        presentation:
+          config.commandExecution?.voting?.presentation ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.presentation,
         command:
           config.commandExecution?.voting?.command ??
           DEFAULT_COMMAND_EXECUTION_CONFIG.voting.command,
