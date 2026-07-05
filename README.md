@@ -15,6 +15,7 @@ Current project: <https://github.com/KlN-4096/mcsm-portal-pro>
 - Render status and server lists as text or Minecraft-style images.
 - Copy a server address quickly by name, alias, or instance ID.
 - Execute commands through the MCSManager instance terminal, optionally using interactive server selection and chat voting.
+- Show command execution votes as QQ official bot buttons or Minecraft-style progress images.
 - Customize server-list and terminal-execution failure messages.
 - Optional QQ interaction helpers for reaction mirroring and OneBot-compatible avatar double-tap.
 
@@ -37,6 +38,7 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `fields.playerNames`: show player names returned by the terminal `list` command
 - `commandExecution.enabled`: enable chat-side command execution through the MCSManager terminal
 - `commandExecution.voting.enabled`: require chat voting before command execution
+- `commandExecution.voting.presentation`: `auto`, `qq-button`, or `image`. `auto` uses QQ official bot buttons on QQ official bot sessions and image progress elsewhere. `qq-button` falls back to image progress outside QQ official bot sessions.
 
 The default root command is `mcsm`.
 
@@ -59,6 +61,8 @@ Supported server status filters are `running`, `stopped`, `starting`, `stopping`
 
 Terminal output capture sends vanilla `data get storage` marker commands before and after the target command, then returns the log lines captured between those markers.
 
+Execution voting no longer uses the old text progress messages. QQ official bot sessions render action buttons and receive clicks through Koishi's `interaction/button` event. Other adapters render the vote as an image; users still vote with `mcsm.vote yes` or `mcsm.vote no`. QQ buttons require the QQ adapter to subscribe to the `INTERACTIONS` intent.
+
 ## Customization Notes
 
 This fork keeps the original MCSManager portal workflow and adds personal-use changes:
@@ -67,6 +71,7 @@ This fork keeps the original MCSManager portal workflow and adds personal-use ch
 - Player names are read from the instance terminal `list` command only when `fields.playerNames` is enabled.
 - Chat command execution uses the MCSManager terminal instead of Minecraft RCON.
 - Terminal capture uses per-instance command queues and marker-bounded log parsing to reduce output mixing.
+- Command execution votes can render as QQ official bot buttons or Minecraft-style progress images.
 - Instances that do not echo terminal markers are skipped for automatic player-list probing after a timeout.
 - Remote latency fallback can read JSON values such as MineBBS MOTD API's `delay` field.
 - Server-list and terminal-execution failure messages can be customized.
