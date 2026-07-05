@@ -1,16 +1,16 @@
 {
-  "name": "koishi-plugin-mcsm-portal",
-  "description": "A Minecraft-styled MCSManager portal for Koishi.",
-  "version": "0.0.19",
+  "name": "koishi-plugin-mcsm-portal-pro",
+  "description": "A personal customized fork of KrLite/mcsm-portal for Koishi.",
+  "version": "0.0.20",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "homepage": "https://github.com/KrLite/mcsm-portal",
+  "homepage": "https://github.com/KlN-4096/mcsm-portal-pro",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KrLite/mcsm-portal.git"
+    "url": "git+https://github.com/KlN-4096/mcsm-portal-pro.git"
   },
   "bugs": {
-    "url": "https://github.com/KrLite/mcsm-portal/issues"
+    "url": "https://github.com/KlN-4096/mcsm-portal-pro/issues"
   },
   "files": [
     "lib",
@@ -39,8 +39,8 @@
       "dist"
     ],
     "description": {
-      "en": "A Minecraft-styled MCSManager portal for node and server status.",
-      "zh": "Minecraft 风格的 MCSManager 节点与服务器状态入口。"
+      "en": "A personal customized MCSManager portal based on KrLite/mcsm-portal.",
+      "zh": "基于 KrLite/mcsm-portal 的自用Minecraft客制化 MCSManager 状态入口。"
     },
     "service": {
       "optional": [
