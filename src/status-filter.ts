@@ -32,7 +32,7 @@ const STATUS_ALIASES: Record<string, InstanceStatus | "all"> = {
 export function resolveStatusFilter(input: string | undefined, defaults: InstanceStatus[]) {
   const normalized = input?.trim();
   if (!normalized) {
-    return { ok: true as const, filter: defaults.length ? defaults : "all" as const };
+    return { ok: true as const, filter: resolveDefaultStatusFilter(defaults) };
   }
 
   const tokens = normalized.split(/[\s,，|/]+/).filter(Boolean);
@@ -47,6 +47,10 @@ export function resolveStatusFilter(input: string | undefined, defaults: Instanc
 export function filterServersByStatus<T extends { status: InstanceStatus }>(servers: T[], filter: StatusFilter) {
   if (filter === "all") return servers;
   return servers.filter((server) => filter.includes(server.status));
+}
+
+export function resolveDefaultStatusFilter(defaults: InstanceStatus[]): StatusFilter {
+  return defaults.length ? defaults : "all";
 }
 
 export function formatStatusChoices() {

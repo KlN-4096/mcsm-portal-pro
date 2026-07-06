@@ -20,6 +20,7 @@ import type { VisualizationLayoutText } from "./visualization/layouts";
 import { resolveBackgroundTextureChoice } from "./visualization/styles";
 import { formatKoishiDate } from "./time";
 import { PLUGIN_VERSION } from "./version";
+import { filterServersByStatus, resolveDefaultStatusFilter } from "./status-filter";
 
 export type VisualizationSurface = "node-status" | "server-list" | "execution-vote";
 
@@ -94,9 +95,13 @@ export function createPreviewEntryData(config?: Config, realDataAvailable = fals
 export async function createRealPreviewData(config: Config, client: MCSManagerClient): Promise<VisualizationMockData> {
   const nodes = await client.listNodes();
   const servers = await client.listMinecraftInstances();
+  const filteredServers = filterServersByStatus(
+    servers,
+    resolveDefaultStatusFilter(config.minecraft.defaultStatuses),
+  );
   const visibleServers = config.fields.playerNames
-    ? await client.enrichMinecraftPlayerLists(servers)
-    : servers;
+    ? await client.enrichMinecraftPlayerLists(filteredServers)
+    : filteredServers;
 
   return {
     ...withVisualizationText(
