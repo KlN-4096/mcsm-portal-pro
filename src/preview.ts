@@ -23,45 +23,35 @@ interface ConsoleLike {
       };
     };
   };
-  vite?: unknown;
+  vite?: {
+    config?: {
+      server?: {
+        fs?: {
+          allow?: string[] | null;
+        };
+      };
+    };
+  };
 }
 
 type ConsoleContext = Context & { console: ConsoleLike };
 type ContextWithBaseDir = Context & { baseDir?: string };
 
 const PREVIEW_DATA_EVENT = "mcsm-portal-pro/preview-data";
-const PREVIEW_CLIENT_LOADED_EVENT = "mcsm-portal-pro/preview-client-loaded";
 
 export function registerPreviewEntry(ctx: Context, config: Config, client: MCSManagerClient) {
   const logger = ctx.logger("mcsm-portal-pro");
-  if (!config.preview.enabled) {
-    logger.info("[preview] disabled by config");
-    return;
-  }
+  if (!config.preview.enabled) return;
 
   const devEntry = resolve(__dirname, "../client/index.ts").replace(/\\/g, "/");
   const prodEntry = resolve(__dirname, "../dist").replace(/\\/g, "/");
-  logger.info("[preview] waiting for console service");
 
   ctx.inject(["console"], (ctx) => {
     const console = (ctx as ConsoleContext).console;
-    logger.info("[preview] console service injected");
-    const viteAllow = allowPreviewSourceInConsoleVite(ctx, console, resolve(__dirname, ".."));
-    logger.info(
-      "[preview] vite fs allow updated active=%s allow=%o",
-      Boolean(console.vite),
-      viteAllow,
-    );
-
-    console.addListener(PREVIEW_CLIENT_LOADED_EVENT, () => {
-      logger.info("[preview] client extension loaded");
-      return { ok: true };
-    });
+    allowPreviewSourceInConsoleVite(ctx, console, resolve(__dirname, ".."));
 
     console.addListener(PREVIEW_DATA_EVENT, async () => {
-      logger.info("[preview] real data requested");
       if (!client.configured) {
-        logger.info("[preview] real data rejected: client not configured");
         return {
           ok: false,
           error: "MCSManager endpoint or API key is not configured.",
@@ -70,7 +60,6 @@ export function registerPreviewEntry(ctx: Context, config: Config, client: MCSMa
 
       try {
         const data = withTextPreviews(await createRealPreviewData(config, client), config);
-        logger.info("[preview] real data loaded");
         return {
           ok: true,
           data,
@@ -87,37 +76,40 @@ export function registerPreviewEntry(ctx: Context, config: Config, client: MCSMa
       }
     });
 
-    const entry = console.addEntry({
+    console.addEntry({
       dev: devEntry,
       prod: prodEntry,
     }, () => {
-      logger.info("[preview] entry data requested");
       const data = createPreviewEntryData(config, client.configured);
       return {
         ...data,
         mock: withTextPreviews(data.mock, config),
       };
     });
-    logger.info(
-      "[preview] addEntry registered id=%s dev=%s prod=%s configured=%s",
-      entry.id,
-      devEntry,
-      prodEntry,
-      client.configured,
-    );
   });
 }
 
 function allowPreviewSourceInConsoleVite(ctx: Context, console: ConsoleLike, root: string) {
-  const fs = console.config?.dev?.fs;
   const baseDir = (ctx as ContextWithBaseDir).baseDir;
-  if (!fs || !baseDir) return fs?.allow;
+  if (!baseDir) return;
 
-  const allow = fs.allow?.map(normalizePath) ?? [normalizePath(baseDir)];
-  const sourceRoot = normalizePath(root);
-  if (!allow.includes(sourceRoot)) allow.push(sourceRoot);
-  fs.allow = allow;
-  return allow;
+  const requiredPaths = [baseDir, root];
+  const configFs = console.config?.dev?.fs;
+  if (configFs) {
+    configFs.allow = mergeAllowedPaths(configFs.allow, requiredPaths);
+  }
+  const viteFs = console.vite?.config?.server?.fs;
+  if (viteFs) {
+    viteFs.allow = mergeAllowedPaths(viteFs.allow, requiredPaths);
+  }
+}
+
+function mergeAllowedPaths(allow: string[] | null | undefined, paths: string[]) {
+  const merged = allow?.map(normalizePath) ?? [];
+  for (const path of paths.map(normalizePath)) {
+    if (!merged.includes(path)) merged.push(path);
+  }
+  return merged;
 }
 
 function normalizePath(path: string) {

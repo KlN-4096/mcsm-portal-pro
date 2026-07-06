@@ -1,5 +1,7 @@
-import { rename } from "node:fs/promises";
+import { rename, rm } from "node:fs/promises";
 import { build } from "esbuild";
+
+await rm("dist", { recursive: true, force: true });
 
 await build({
   entryPoints: ["client/index.ts"],
@@ -19,4 +21,11 @@ await build({
   },
 });
 
-await rename("dist/index.css", "dist/style.css");
+try {
+  await rename("dist/index.css", "dist/style.css");
+} catch (error) {
+  if (error && error.code === "ENOENT") {
+    throw new Error("Client build did not emit dist/index.css.");
+  }
+  throw error;
+}

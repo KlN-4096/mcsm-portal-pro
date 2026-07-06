@@ -93,16 +93,17 @@ export function createPreviewEntryData(config?: Config, realDataAvailable = fals
 
 export async function createRealPreviewData(config: Config, client: MCSManagerClient): Promise<VisualizationMockData> {
   const nodes = await client.listNodes();
-  const servers = config.fields.playerNames
-    ? await client.listMinecraftInstancesWithPlayerList()
-    : await client.listMinecraftInstances();
+  const servers = await client.listMinecraftInstances();
+  const visibleServers = config.fields.playerNames
+    ? await client.enrichMinecraftPlayerLists(servers)
+    : servers;
 
   return {
     ...withVisualizationText(
       {
         ...createVisualizationDataBase(config),
         nodes,
-        servers,
+        servers: visibleServers,
       },
       config,
     ),

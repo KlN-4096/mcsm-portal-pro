@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "module": "esnext",
+    "declaration": false,
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@koishijs/client": [
+        "client/koishi-client.d.ts"
+      ]
+    },
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "client/koishi-client.d.ts",
+    "client/index.ts"
+  ]
+}

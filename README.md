@@ -24,6 +24,7 @@ Current project: <https://github.com/KlN-4096/mcsm-portal-pro>
 - Koishi `^4.18.7`
 - MCSManager with API access enabled
 - Optional: `koishi-plugin-puppeteer` for sharper PNG image output
+- Local builds must install dependencies and run `npm run build` on the same platform because esbuild uses a native package; do not share one `node_modules` between Windows and WSL builds.
 
 ## Setup
 
@@ -39,6 +40,7 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `commandExecution.enabled`: enable chat-side command execution through the MCSManager terminal
 - `commandExecution.voting.enabled`: require chat voting before command execution
 - `commandExecution.voting.presentation`: `auto`, `qq-button`, or `image`. `auto` uses QQ official bot buttons on QQ official bot sessions and image progress elsewhere. `qq-button` falls back to image progress outside QQ official bot sessions.
+- `preview.enabled`: register a Koishi Console preview page when the Console service is available.
 
 The default root command is `mcsm`.
 
@@ -75,6 +77,7 @@ This fork keeps the original MCSManager portal workflow and adds personal-use ch
 - Instances that do not echo terminal markers are skipped for automatic player-list probing after a timeout.
 - Remote latency fallback can read JSON values such as MineBBS MOTD API's `delay` field.
 - Server-list and terminal-execution failure messages can be customized.
+- Koishi Console preview is built from `client/index.ts` into `dist/`; `npm pack` runs `npm run build` automatically before packaging.
 
 ## Links
 

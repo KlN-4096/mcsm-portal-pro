@@ -25,12 +25,12 @@ interface CacheEntry<T> {
 }
 
 type MinecraftPlayerListSnapshot = Pick<MinecraftInstance, "onlinePlayers" | "maxPlayers" | "playerNames">;
+type MinecraftPlayerListCacheValue = MinecraftPlayerListSnapshot | null;
 
 const PLAYER_LIST_COMMAND = "list";
 const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
 const PLAYER_LIST_CONCURRENCY = 3;
 const SECOND_MS = 1000;
-const LATENCY_FALLBACK_CACHE_TTL_MS = 5 * 60 * SECOND_MS;
 const COMMAND_OUTPUT_LOG_SIZE = 65536;
 const COMMAND_LOG_WINDOW_LINES = 10000;
 const COMMAND_OUTPUT_WAIT_MS = 20000;
@@ -41,7 +41,7 @@ const COMMAND_MARKER_NAMESPACE = "mcsm_portal";
 export class MCSManagerClient {
   private nodesCache?: CacheEntry<NodeStatus[]>;
   private minecraftInstancesCache?: CacheEntry<MinecraftInstance[]>;
-  private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListSnapshot>>();
+  private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListCacheValue>>();
   private latencyFallbackCache = new Map<string, CacheEntry<number>>();
   private instanceCommandQueues = new Map<string, Promise<unknown>>();
   private playerListUnavailableInstances = new Set<string>();
@@ -121,11 +121,6 @@ export class MCSManagerClient {
 
     this.minecraftInstancesCache = this.writeCache(instances);
     return instances;
-  }
-
-  async listMinecraftInstancesWithPlayerList() {
-    const instances = await this.listMinecraftInstances();
-    return this.enrichMinecraftPlayerLists(instances);
   }
 
   async listInstances() {
@@ -386,7 +381,8 @@ export class MCSManagerClient {
       }
       const cacheKey = getInstanceCommandKey(instance);
       const cached = this.readCache(this.minecraftPlayerListCache.get(cacheKey));
-      if (cached) {
+      if (cached !== undefined) {
+        if (cached === null) return instance;
         return { ...instance, ...cached };
       }
       if (this.playerListUnavailableInstances.has(cacheKey)) {
@@ -404,13 +400,21 @@ export class MCSManagerClient {
           PLAYER_LIST_MAX_RESULT_LENGTH,
         );
         const list = parseMinecraftListOutput(output);
-        if (!list) return instance;
+        if (!list) {
+          const entry = this.writeCache<MinecraftPlayerListCacheValue>(null);
+          if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
+          this.debug("minecraft player list output did not match list format", {
+            id: instance.id,
+            name: instance.name,
+          });
+          return instance;
+        }
         const snapshot = {
           onlinePlayers: list.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: list.maxPlayers ?? instance.maxPlayers,
           playerNames: list.playerNames ?? instance.playerNames,
         };
-        const entry = this.writeCache(snapshot);
+        const entry = this.writeCache<MinecraftPlayerListCacheValue>(snapshot);
         if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
         return { ...instance, ...snapshot };
       } catch (error) {
@@ -498,7 +502,7 @@ export class MCSManagerClient {
         cacheKey,
         timeout,
       );
-      const entry = this.writeCache(latencyMs, LATENCY_FALLBACK_CACHE_TTL_MS);
+      const entry = this.writeCache(latencyMs);
       if (entry) this.latencyFallbackCache.set(cacheKey, entry);
       this.debug("latency testing service result", {
         id: instance.id,

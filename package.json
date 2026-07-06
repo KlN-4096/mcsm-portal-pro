@@ -15,13 +15,13 @@
   "files": [
     "lib",
     "dist",
-    "assets",
-    "scripts"
+    "assets"
   ],
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
-    "build:client": "node scripts/build-client.mjs",
+    "build": "node scripts/clean-server-build.mjs && tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
+    "build:client": "tsc -p tsconfig.client.json && node scripts/build-client.mjs",
+    "prepack": "npm run build",
     "build:visualization": "tailwindcss -c tailwind.config.cjs -i assets/visualization/layout.tailwind.css -o assets/visualization/layout.css --minify"
   },
   "keywords": [

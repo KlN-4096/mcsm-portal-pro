@@ -1,3 +1,5 @@
+import { Time } from "koishi";
+
 const MINUTE_MS = 60_000;
 
 export function formatKoishiDate(value: string | Date) {
@@ -5,7 +7,7 @@ export function formatKoishiDate(value: string | Date) {
   const timestamp = date.valueOf();
   if (!Number.isFinite(timestamp)) return "Invalid Date";
 
-  const localDate = new Date(timestamp - new Date().getTimezoneOffset() * MINUTE_MS);
+  const localDate = new Date(timestamp - Time.getTimezoneOffset() * MINUTE_MS);
   const datePart = [
     localDate.getUTCFullYear(),
     toDigits(localDate.getUTCMonth() + 1),
@@ -21,5 +23,5 @@ export function formatKoishiDate(value: string | Date) {
 }
 
 function toDigits(source: number, length = 2) {
-  return source.toString().padStart(length, "0");
+  return Time.toDigits(source, length);
 }
