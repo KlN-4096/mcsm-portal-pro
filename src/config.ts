@@ -442,7 +442,7 @@ export const Config = Schema.intersect([
         .description("Show online player count."),
       playerNames: Schema.boolean()
         .default(DEFAULT_FIELDS_CONFIG.playerNames)
-        .description("Show online player names returned by the MCSManager terminal list command."),
+        .description("Show online player names from complete status samples, Minecraft Query full stat, or terminal list fallback."),
       status: Schema.boolean()
         .default(DEFAULT_FIELDS_CONFIG.status)
         .description("Show instance status."),

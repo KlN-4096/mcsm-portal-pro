@@ -10,7 +10,7 @@ Current project: <https://github.com/KlN-4096/mcsm-portal-pro>
 
 - Bind to an MCSManager panel with an API key.
 - Check MCSManager node status from chat.
-- List Minecraft server instances hosted by MCSManager, with status filtering and online player names from the terminal `list` command.
+- List Minecraft server instances hosted by MCSManager, with status filtering and online player names from Minecraft status/query data or terminal `list` fallback.
 - Use optional remote latency testing services when local Minecraft status latency is missing or useless.
 - Render status and server lists as text or Minecraft-style images.
 - Copy a server address quickly by name, alias, or instance ID.
@@ -37,7 +37,7 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `minecraft.latencyCacheTtl`: remote latency testing result cache TTL in seconds. Defaults to one day.
 - `output.mode`: `text` or `image`
 - `image.puppeteer`: enable when the Puppeteer service is available
-- `fields.playerNames`: show player names returned by the terminal `list` command
+- `fields.playerNames`: show online player names. Complete Server List Ping samples are used first, Minecraft Query Protocol full stat is tried next, and the MCSManager terminal `list` command is used as the fallback.
 - `commandExecution.enabled`: enable chat-side command execution through the MCSManager terminal
 - `commandExecution.voting.enabled`: require chat voting before command execution
 - `commandExecution.voting.presentation`: `auto`, `qq-button`, or `image`. `auto` uses QQ official bot buttons on QQ official bot sessions and image progress elsewhere. `qq-button` falls back to image progress outside QQ official bot sessions.
@@ -72,11 +72,11 @@ Execution voting no longer uses the old text progress messages. QQ official bot 
 This fork keeps the original MCSManager portal workflow and adds personal-use changes:
 
 - `mcsm servers` defaults to running servers and supports explicit status filters.
-- Player names are read from the instance terminal `list` command only when `fields.playerNames` is enabled.
+- Player names are resolved only when `fields.playerNames` is enabled. The plugin first reuses complete Server List Ping samples, then tries Minecraft Query Protocol full stat on the server address port, then falls back to marker-bounded terminal `list`.
 - Chat command execution uses the MCSManager terminal instead of Minecraft RCON.
 - Terminal capture uses per-instance command queues and marker-bounded log parsing to reduce output mixing.
 - Command execution votes can render as QQ official bot buttons or Minecraft-style progress images.
-- Instances that do not echo terminal markers are skipped for automatic player-list probing after a timeout.
+- Instances that do not expose complete Ping samples, Query full stat, or marker-capturable terminal `list` output skip player-name display until the cache refreshes.
 - Remote latency fallback can read JSON values such as MineBBS MOTD API's `delay` field.
 - Server-list and terminal-execution failure messages can be customized.
 - Koishi Console preview is built from `client/index.ts` into `dist/`; `npm pack` runs `npm run build` automatically before packaging.

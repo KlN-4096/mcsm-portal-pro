@@ -9,6 +9,7 @@ export interface MinecraftStatus {
   latencyMs?: number;
   onlinePlayers?: number;
   maxPlayers?: number;
+  samplePlayerNames?: string[];
   version?: string;
 }
 
@@ -115,6 +116,7 @@ function normalizeStatusResponse(value: unknown): MinecraftStatus {
     iconUrl: normalizeFavicon(readRecordString(value, "favicon")),
     onlinePlayers: readRecordNumber(players, "online"),
     maxPlayers: readRecordNumber(players, "max"),
+    samplePlayerNames: readPlayerSample(players),
     version: readRecordString(version, "name"),
   };
 }
@@ -202,4 +204,14 @@ function readRecordString(record: Record<string, unknown> | undefined, key: stri
 function readRecordNumber(record: Record<string, unknown> | undefined, key: string) {
   const value = record?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readPlayerSample(record: Record<string, unknown> | undefined) {
+  const sample = record?.sample;
+  if (!Array.isArray(sample)) return;
+
+  const names = sample
+    .map((item) => readRecordString(toRecord(item), "name"))
+    .filter((name): name is string => Boolean(name));
+  return names.length ? names : undefined;
 }

@@ -107,7 +107,8 @@ export const CONFIG_LOCALES = {
       $desc: "服务器列表字段",
       address: "显示服务器地址。",
       onlineCount: "显示在线玩家数量。",
-      playerNames: "显示 MCSManager 终端 list 指令返回的在线玩家名单。",
+      playerNames:
+        "显示在线玩家名单。优先使用完整状态样例，其次尝试 Minecraft Query full stat，最后使用终端 list 兜底。",
       status: "显示实例状态。",
       node: "显示节点名称。",
       version: "显示 Minecraft 版本。",

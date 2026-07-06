@@ -5,7 +5,8 @@ import type {
   MinecraftConfig,
 } from "./config";
 import { parseMinecraftListOutput } from "./minecraft-list-output";
-import { parseMinecraftAddress, queryMinecraftStatus } from "./minecraft-status";
+import { queryMinecraftFullStat } from "./minecraft-query";
+import { parseMinecraftAddress, queryMinecraftStatus, type MinecraftStatus } from "./minecraft-status";
 import {
   captureMarkedLogLines,
   describeMarkedLogCapture,
@@ -28,8 +29,9 @@ type MinecraftPlayerListSnapshot = Pick<MinecraftInstance, "onlinePlayers" | "ma
 type MinecraftPlayerListCacheValue = MinecraftPlayerListSnapshot | null;
 
 const PLAYER_LIST_COMMAND = "list";
-const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
 const PLAYER_LIST_CONCURRENCY = 3;
+const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
+const PLAYER_LIST_QUERY_WAIT_MS = 600;
 const SECOND_MS = 1000;
 const COMMAND_OUTPUT_LOG_SIZE = 65536;
 const COMMAND_LOG_WINDOW_LINES = 10000;
@@ -44,7 +46,6 @@ export class MCSManagerClient {
   private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListCacheValue>>();
   private latencyFallbackCache = new Map<string, CacheEntry<number>>();
   private instanceCommandQueues = new Map<string, Promise<unknown>>();
-  private playerListUnavailableInstances = new Set<string>();
 
   constructor(
     private ctx: Context,
@@ -227,7 +228,6 @@ export class MCSManagerClient {
     this.minecraftInstancesCache = undefined;
     this.minecraftPlayerListCache.clear();
     this.latencyFallbackCache.clear();
-    this.playerListUnavailableInstances.clear();
     this.debug("cache cleared");
   }
 
@@ -364,6 +364,7 @@ export class MCSManagerClient {
       try {
         const status = await queryMinecraftStatus(instance.address, timeout);
         const latencyMs = await this.resolveLatency(instance, status.latencyMs, timeout);
+        const playerNames = readCompleteStatusPlayerNames(status);
         this.debug("minecraft status query result", {
           id: instance.id,
           name: instance.name,
@@ -371,11 +372,14 @@ export class MCSManagerClient {
           ms: Date.now() - startedAt,
           statusLatencyMs: status.latencyMs,
           latencyMs,
+          samplePlayers: status.samplePlayerNames?.length,
+          sampleComplete: playerNames !== undefined,
         });
         return {
           ...instance,
           onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: status.maxPlayers ?? instance.maxPlayers,
+          playerNames: playerNames ?? instance.playerNames,
           latencyMs: latencyMs ?? status.latencyMs ?? instance.latencyMs,
           version: status.version ?? instance.version,
           motd: status.motd ?? instance.motd,
@@ -397,7 +401,7 @@ export class MCSManagerClient {
 
   async enrichMinecraftPlayerLists(instances: MinecraftInstance[]) {
     return mapConcurrent(instances, PLAYER_LIST_CONCURRENCY, async (instance) => {
-      if (instance.status !== "running" || !instance.nodeId) {
+      if (instance.status !== "running") {
         return instance;
       }
       const cacheKey = getInstanceCommandKey(instance);
@@ -406,65 +410,95 @@ export class MCSManagerClient {
         if (cached === null) return instance;
         return { ...instance, ...cached };
       }
-      if (this.playerListUnavailableInstances.has(cacheKey)) {
-        this.debug("minecraft player list skipped for terminal-incompatible instance", {
-          id: instance.id,
-          name: instance.name,
-        });
-        return instance;
-      }
 
       const startedAt = Date.now();
-      try {
-        const output = await this.executeInstanceCommand(
-          instance,
-          PLAYER_LIST_COMMAND,
-          PLAYER_LIST_MAX_RESULT_LENGTH,
-        );
-        const list = parseMinecraftListOutput(output);
-        if (!list) {
-          const entry = this.writeCache<MinecraftPlayerListCacheValue>(null);
-          if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
-          this.debug("minecraft player list output did not match list format", {
-            id: instance.id,
-            name: instance.name,
-            ms: Date.now() - startedAt,
-          });
-          return instance;
-        }
-        const snapshot = {
-          onlinePlayers: list.onlinePlayers ?? instance.onlinePlayers,
-          maxPlayers: list.maxPlayers ?? instance.maxPlayers,
-          playerNames: list.playerNames ?? instance.playerNames,
-        };
-        const entry = this.writeCache<MinecraftPlayerListCacheValue>(snapshot);
-        if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
+      const result = await this.resolveMinecraftPlayerList(instance);
+      const entry = this.writeCache<MinecraftPlayerListCacheValue>(result?.snapshot ?? null);
+      if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
+      if (result) {
         this.debug("minecraft player list result", {
           id: instance.id,
           name: instance.name,
+          source: result.source,
           ms: Date.now() - startedAt,
-          players: snapshot.onlinePlayers,
-          playerNames: snapshot.playerNames?.length,
+          players: result.snapshot.onlinePlayers,
+          playerNames: result.snapshot.playerNames?.length,
         });
-        return { ...instance, ...snapshot };
-      } catch (error) {
-        if (error instanceof TerminalMarkerTimeoutError) {
-          this.playerListUnavailableInstances.add(cacheKey);
-          this.debug("minecraft player list disabled after terminal marker timeout", {
-            id: instance.id,
-            name: instance.name,
-            ms: Date.now() - startedAt,
-          });
-        }
-        this.ctx.logger("mcsm-portal-pro").warn(
-          "minecraft list command failed: instance=%s name=%s message=%s",
-          instance.id,
-          instance.name,
-          formatErrorMessage(error),
-        );
-        return instance;
+        return { ...instance, ...result.snapshot };
       }
+      this.debug("minecraft player list unavailable", {
+        id: instance.id,
+        name: instance.name,
+        ms: Date.now() - startedAt,
+      });
+      return instance;
     });
+  }
+
+  private async resolveMinecraftPlayerList(instance: MinecraftInstance) {
+    const statusSnapshot = readCompleteInstancePlayerList(instance);
+    if (statusSnapshot) return { source: "status" as const, snapshot: statusSnapshot };
+
+    if (instance.address) {
+      try {
+        const snapshot = await this.queryMinecraftPlayerList(instance);
+        if (snapshot) return { source: "query" as const, snapshot };
+      } catch (error) {
+        this.debug("minecraft query player list failed", {
+          id: instance.id,
+          name: instance.name,
+          address: instance.address,
+          message: formatErrorMessage(error),
+        });
+      }
+    }
+
+    if (!instance.nodeId) return;
+    try {
+      const snapshot = await this.queryTerminalPlayerList(instance);
+      if (snapshot) return { source: "terminal" as const, snapshot };
+    } catch (error) {
+      this.ctx.logger("mcsm-portal-pro").warn(
+        "minecraft list command failed: instance=%s name=%s message=%s",
+        instance.id,
+        instance.name,
+        formatErrorMessage(error),
+      );
+    }
+  }
+
+  private async queryMinecraftPlayerList(instance: MinecraftInstance) {
+    const timeout = Math.min(this.config.timeout, PLAYER_LIST_QUERY_WAIT_MS);
+    const result = await queryMinecraftFullStat(instance.address!, timeout);
+    if (result.onlinePlayers === 0) {
+      return {
+        onlinePlayers: 0,
+        maxPlayers: result.maxPlayers ?? instance.maxPlayers,
+        playerNames: [],
+      };
+    }
+    if (!result.playerNames?.length) return;
+
+    return {
+      onlinePlayers: result.onlinePlayers ?? result.playerNames.length,
+      maxPlayers: result.maxPlayers ?? instance.maxPlayers,
+      playerNames: result.playerNames,
+    };
+  }
+
+  private async queryTerminalPlayerList(instance: MinecraftInstance) {
+    const output = await this.executeInstanceCommand(
+      instance,
+      PLAYER_LIST_COMMAND,
+      PLAYER_LIST_MAX_RESULT_LENGTH,
+    );
+    const list = parseMinecraftListOutput(output);
+    if (!list) return;
+    return {
+      onlinePlayers: list.onlinePlayers ?? instance.onlinePlayers,
+      maxPlayers: list.maxPlayers ?? instance.maxPlayers,
+      playerNames: list.playerNames,
+    };
   }
 
   private async sendInstanceCommand(instance: MinecraftInstance, command: string) {
@@ -728,6 +762,29 @@ function normalizeLatencyNumber(value: unknown) {
   if (!match) return;
   const parsed = Number(match[0]);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : undefined;
+}
+
+function readCompleteStatusPlayerNames(status: MinecraftStatus) {
+  if (status.onlinePlayers === 0) return [];
+  const sample = status.samplePlayerNames;
+  if (!sample?.length || sample.length !== status.onlinePlayers) return;
+  return sample;
+}
+
+function readCompleteInstancePlayerList(instance: MinecraftInstance): MinecraftPlayerListSnapshot | undefined {
+  if (instance.onlinePlayers === 0) {
+    return {
+      onlinePlayers: 0,
+      maxPlayers: instance.maxPlayers,
+      playerNames: [],
+    };
+  }
+  if (!instance.playerNames?.length || instance.playerNames.length !== instance.onlinePlayers) return;
+  return {
+    onlinePlayers: instance.onlinePlayers,
+    maxPlayers: instance.maxPlayers,
+    playerNames: instance.playerNames,
+  };
 }
 
 function extractOutputLogText(value: unknown) {
