@@ -20,6 +20,8 @@ import "../assets/visualization/layout.css";
 import "./style.css";
 
 type VisualizationSurface = "node-status" | "server-list";
+const PREVIEW_CLIENT_LOADED_EVENT = "mcsm-portal-pro/preview-client-loaded";
+
 type InstanceStatus =
   | "running"
   | "stopped"
@@ -792,6 +794,11 @@ const ReactLayoutHost = defineComponent<{
 });
 
 export default defineExtension((ctx) => {
+  console.info("[mcsm-portal-pro] preview client extension loaded");
+  void Promise.resolve(send(PREVIEW_CLIENT_LOADED_EVENT)).catch((error) => {
+    console.warn("[mcsm-portal-pro] failed to report preview client load", error);
+  });
+
   ctx.page({
     id: "mcsm-portal-pro-preview",
     path: "/mcsm-portal-pro/preview",

@@ -1,4 +1,4 @@
-import { Time, type Context } from "koishi";
+import type { Context } from "koishi";
 import type {
   ConnectionConfig,
   LatencyFallbackServiceConfig,
@@ -29,7 +29,8 @@ type MinecraftPlayerListSnapshot = Pick<MinecraftInstance, "onlinePlayers" | "ma
 const PLAYER_LIST_COMMAND = "list";
 const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
 const PLAYER_LIST_CONCURRENCY = 3;
-const LATENCY_FALLBACK_CACHE_TTL_MS = 5 * 60 * Time.second;
+const SECOND_MS = 1000;
+const LATENCY_FALLBACK_CACHE_TTL_MS = 5 * 60 * SECOND_MS;
 const COMMAND_OUTPUT_LOG_SIZE = 65536;
 const COMMAND_LOG_WINDOW_LINES = 10000;
 const COMMAND_OUTPUT_WAIT_MS = 20000;
@@ -594,7 +595,7 @@ export class MCSManagerClient {
     return entry.value;
   }
 
-  private writeCache<T>(value: T, ttlMs = this.cacheTtl * Time.second): CacheEntry<T> | undefined {
+  private writeCache<T>(value: T, ttlMs = this.cacheTtl * SECOND_MS): CacheEntry<T> | undefined {
     if (this.cacheTtl <= 0 || ttlMs <= 0) return;
     return {
       expiresAt: Date.now() + ttlMs,

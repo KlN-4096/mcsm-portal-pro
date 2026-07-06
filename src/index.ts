@@ -1,4 +1,4 @@
-import { Context } from "koishi";
+import type { Context } from "koishi";
 import { MCSManagerClient } from "./client";
 import { registerCommands } from "./commands";
 import { Config as ConfigSchema, createRuntimeConfig } from "./config";
