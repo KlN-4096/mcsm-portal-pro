@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { basename, extname, join } from "path";
+import { pathToFileURL } from "url";
 
 type FontFormat = "truetype" | "opentype";
 type AssetKind = "fonts" | "textures" | "visualization";
@@ -63,14 +64,13 @@ function createFontFaceCss() {
   return fonts
     .map((font) => {
       const path = resolveFontPath(font.file);
-      const mime = font.format === "opentype" ? "font/otf" : "font/ttf";
-      const data = readFileSync(path).toString("base64");
+      const url = pathToFileURL(path).href;
       const unicodeRange = font.unicodeRange
         ? `\n  unicode-range: ${font.unicodeRange};`
         : "";
       return `@font-face {
   font-family: "${font.family}";
-  src: url("data:${mime};base64,${data}") format("${font.format}");
+  src: url("${url}") format("${font.format}");
   font-weight: 400;
   font-style: normal;
   font-display: swap;${unicodeRange}
