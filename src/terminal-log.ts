@@ -12,6 +12,7 @@ const ANSI_OSC_PATTERN = /\u001B\][^\u0007]*\u0007/g;
 const CONTROL_CHARS_PATTERN = /[\u0000-\u001F\u007F-\u009F]/g;
 const LOG_LINE_SEPARATOR_PATTERN =
   /\r\n|\n|\r|\\r\\n|\\n|\\r|<br\s*\/?>/i;
+const LOG_LINE_PREFIX_PATTERN = /^\[[^\]]+\]\s+\[[^\]]+\]\s+\[[^\]]+\]:\s*/;
 const LOG_TIME_PATTERN = /^\[(\d{2}):(\d{2}):(\d{2})\]/;
 
 export function captureMarkedLogLines(options: MarkedTerminalLogCaptureOptions) {
@@ -109,6 +110,10 @@ export function logContainsMarkerSince(
 export function limitOutput(output: string, maxLength: number) {
   if (output.length <= maxLength) return output;
   return `${output.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+export function stripMinecraftLogPrefixes(lines: string[]) {
+  return lines.map((line) => line.replace(LOG_LINE_PREFIX_PATTERN, ""));
 }
 
 function toLogLines(text: string | null) {

@@ -12,6 +12,7 @@ import {
   describeMarkedLogCapture,
   limitOutput,
   logContainsMarkerSince,
+  stripMinecraftLogPrefixes,
 } from "./terminal-log";
 import type {
   InstanceStatus,
@@ -200,7 +201,7 @@ export class MCSManagerClient {
       throw new Error("Failed to capture terminal output between command markers.");
     }
 
-    return limitOutput(lines.join("\n").trim(), maxLength);
+    return limitOutput(stripMinecraftLogPrefixes(lines).join("\n").trim(), maxLength);
   }
 
   private async waitForLogMarker(
