@@ -92,11 +92,12 @@ async function showMinecraftServers(
       });
     }
 
-    const servers = config.fields.playerNames
-      ? await client.listMinecraftInstancesWithPlayerList()
-      : await client.listMinecraftInstances();
+    const servers = await client.listMinecraftInstances();
     const visibleServers = filterServersByStatus(servers, parsed.filter);
-    return renderServerList(ctx, config, visibleServers, createRenderText(session, scope, config));
+    const displayServers = config.fields.playerNames
+      ? await client.enrichMinecraftPlayerLists(visibleServers)
+      : visibleServers;
+    return renderServerList(ctx, config, displayServers, createRenderText(session, scope, config));
   } catch (error) {
     const message = formatErrorMessage(session, scope, error);
     ctx.logger("mcsm-portal-pro").warn("minecraft server list failed: %s", message);

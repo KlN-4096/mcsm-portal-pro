@@ -24,9 +24,12 @@ interface CacheEntry<T> {
   value: T;
 }
 
+type MinecraftPlayerListSnapshot = Pick<MinecraftInstance, "onlinePlayers" | "maxPlayers" | "playerNames">;
+
 const PLAYER_LIST_COMMAND = "list";
 const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
 const PLAYER_LIST_CONCURRENCY = 3;
+const LATENCY_FALLBACK_CACHE_TTL_MS = 5 * 60 * Time.second;
 const COMMAND_OUTPUT_LOG_SIZE = 65536;
 const COMMAND_LOG_WINDOW_LINES = 10000;
 const COMMAND_OUTPUT_WAIT_MS = 20000;
@@ -37,7 +40,8 @@ const COMMAND_MARKER_NAMESPACE = "mcsm_portal";
 export class MCSManagerClient {
   private nodesCache?: CacheEntry<NodeStatus[]>;
   private minecraftInstancesCache?: CacheEntry<MinecraftInstance[]>;
-  private minecraftInstancesWithPlayerListCache?: CacheEntry<MinecraftInstance[]>;
+  private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListSnapshot>>();
+  private latencyFallbackCache = new Map<string, CacheEntry<number>>();
   private instanceCommandQueues = new Map<string, Promise<unknown>>();
   private playerListUnavailableInstances = new Set<string>();
 
@@ -119,16 +123,8 @@ export class MCSManagerClient {
   }
 
   async listMinecraftInstancesWithPlayerList() {
-    const cached = this.readCache(this.minecraftInstancesWithPlayerListCache);
-    if (cached) {
-      this.debug("minecraft instances player list cache hit", { count: cached.length });
-      return cached;
-    }
-
     const instances = await this.listMinecraftInstances();
-    const withPlayerList = await this.enrichMinecraftPlayerLists(instances);
-    this.minecraftInstancesWithPlayerListCache = this.writeCache(withPlayerList);
-    return withPlayerList;
+    return this.enrichMinecraftPlayerLists(instances);
   }
 
   async listInstances() {
@@ -225,7 +221,8 @@ export class MCSManagerClient {
   clearCache() {
     this.nodesCache = undefined;
     this.minecraftInstancesCache = undefined;
-    this.minecraftInstancesWithPlayerListCache = undefined;
+    this.minecraftPlayerListCache.clear();
+    this.latencyFallbackCache.clear();
     this.playerListUnavailableInstances.clear();
     this.debug("cache cleared");
   }
@@ -381,12 +378,17 @@ export class MCSManagerClient {
     });
   }
 
-  private async enrichMinecraftPlayerLists(instances: MinecraftInstance[]) {
+  async enrichMinecraftPlayerLists(instances: MinecraftInstance[]) {
     return mapConcurrent(instances, PLAYER_LIST_CONCURRENCY, async (instance) => {
       if (instance.status !== "running" || !instance.nodeId) {
         return instance;
       }
-      if (this.playerListUnavailableInstances.has(getInstanceCommandKey(instance))) {
+      const cacheKey = getInstanceCommandKey(instance);
+      const cached = this.readCache(this.minecraftPlayerListCache.get(cacheKey));
+      if (cached) {
+        return { ...instance, ...cached };
+      }
+      if (this.playerListUnavailableInstances.has(cacheKey)) {
         this.debug("minecraft player list skipped for terminal-incompatible instance", {
           id: instance.id,
           name: instance.name,
@@ -402,15 +404,17 @@ export class MCSManagerClient {
         );
         const list = parseMinecraftListOutput(output);
         if (!list) return instance;
-        return {
-          ...instance,
+        const snapshot = {
           onlinePlayers: list.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: list.maxPlayers ?? instance.maxPlayers,
           playerNames: list.playerNames ?? instance.playerNames,
         };
+        const entry = this.writeCache(snapshot);
+        if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
+        return { ...instance, ...snapshot };
       } catch (error) {
         if (error instanceof TerminalMarkerTimeoutError) {
-          this.playerListUnavailableInstances.add(getInstanceCommandKey(instance));
+          this.playerListUnavailableInstances.add(cacheKey);
           this.debug("minecraft player list disabled after terminal marker timeout", {
             id: instance.id,
             name: instance.name,
@@ -475,12 +479,26 @@ export class MCSManagerClient {
       return statusLatencyMs;
     }
 
+    const cacheKey = instance.address!;
+    const cached = this.readCache(this.latencyFallbackCache.get(cacheKey));
+    if (cached !== undefined) {
+      this.debug("latency testing service cache hit", {
+        id: instance.id,
+        name: instance.name,
+        address: instance.address,
+        latencyMs: cached,
+      });
+      return cached;
+    }
+
     try {
       const latencyMs = await this.queryLatencyTestingServices(
         services,
-        instance.address!,
+        cacheKey,
         timeout,
       );
+      const entry = this.writeCache(latencyMs, LATENCY_FALLBACK_CACHE_TTL_MS);
+      if (entry) this.latencyFallbackCache.set(cacheKey, entry);
       this.debug("latency testing service result", {
         id: instance.id,
         name: instance.name,
@@ -576,10 +594,10 @@ export class MCSManagerClient {
     return entry.value;
   }
 
-  private writeCache<T>(value: T): CacheEntry<T> | undefined {
-    if (this.cacheTtl <= 0) return;
+  private writeCache<T>(value: T, ttlMs = this.cacheTtl * Time.second): CacheEntry<T> | undefined {
+    if (this.cacheTtl <= 0 || ttlMs <= 0) return;
     return {
-      expiresAt: Date.now() + this.cacheTtl * Time.second,
+      expiresAt: Date.now() + ttlMs,
       value,
     };
   }
