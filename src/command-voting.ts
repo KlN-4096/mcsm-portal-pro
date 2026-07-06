@@ -133,7 +133,11 @@ function finishVote(runtime: VoteRuntime, outcome: VoteOutcome) {
   invalidatePendingVoteRenders(runtime);
   disposeVote(runtime);
   const finalRender =
-    outcome === "passed" ? Promise.resolve() : sendVoteUpdate(runtime, outcome);
+    outcome === "passed"
+      ? Promise.resolve()
+      : outcome === "timeout"
+        ? sendVoteTimeout(runtime)
+        : sendVoteUpdate(runtime, outcome);
   finalRender.then(() => runtime.resolve(outcome), runtime.reject);
 }
 
@@ -182,7 +186,7 @@ async function sendVoteUpdate(
 ) {
   const state = createVoteVisualizationState(runtime, status);
   if (runtime.presentation === "qq-button") {
-    return runtime.session.send(renderQQVoteMessage(runtime, state, status));
+    return runtime.session.send(renderVoteTextMessage(runtime, state, status));
   }
   const renderVersion = ++runtime.renderVersion;
   const image = await renderVisualizationImage(
@@ -194,7 +198,13 @@ async function sendVoteUpdate(
   return runtime.session.send(image);
 }
 
-function renderQQVoteMessage(
+function sendVoteTimeout(runtime: VoteRuntime) {
+  return runtime.session.send(
+    renderVoteTextMessage(runtime, createVoteVisualizationState(runtime, "timeout"), "timeout"),
+  );
+}
+
+function renderVoteTextMessage(
   runtime: VoteRuntime,
   state: ExecutionVoteVisualizationState,
   status: VoteOutcome | "active",

@@ -100,7 +100,7 @@ export const CONFIG_LOCALES = {
       serversFailed:
         "Minecraft 服务器列表加载失败时的自定义提示。支持 {message}；留空使用内置文案。",
       execFailed:
-        "终端指令执行失败时的自定义提示。支持 {message} 和 {name}；留空使用内置文案。",
+        "终端指令执行失败时的自定义提示。支持 {message} 和 {name}；{name} 是已解析出的服务器名，未解析到服务器时为空。留空使用内置文案。",
     },
     fields: {
       $desc: "服务器列表字段",

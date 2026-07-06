@@ -521,7 +521,7 @@ export const Config = Schema.intersect([
       execFailed: Schema.string()
         .role("textarea")
         .description(
-          "Custom message for terminal command execution failures. Supports {message} and {name}. Leave empty to use the built-in locale.",
+          "Custom message for terminal command execution failures. Supports {message} and {name}; {name} is empty when no server has been resolved. Leave empty to use the built-in locale.",
         )
         .default(DEFAULT_ERROR_MESSAGES_CONFIG.execFailed),
     })

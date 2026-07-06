@@ -5,7 +5,8 @@ export function formatErrorTemplate(template: string, params: ErrorTemplateParam
   if (!normalized) return;
 
   return normalized.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => {
+    if (!Object.hasOwn(params, key)) return match;
     const value = params[key];
-    return value === undefined ? match : String(value);
+    return value === undefined ? "" : String(value);
   });
 }

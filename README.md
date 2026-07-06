@@ -40,6 +40,7 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `commandExecution.enabled`: enable chat-side command execution through the MCSManager terminal
 - `commandExecution.voting.enabled`: require chat voting before command execution
 - `commandExecution.voting.presentation`: `auto`, `qq-button`, or `image`. `auto` uses QQ official bot buttons on QQ official bot sessions and image progress elsewhere. `qq-button` falls back to image progress outside QQ official bot sessions.
+- `errorMessages.execFailed`: custom command-execution failure text. `{message}` is the original error message; `{name}` is the resolved server name and is empty when the failure happens before a server is selected.
 - `preview.enabled`: register a Koishi Console preview page when the Console service is available.
 
 The default root command is `mcsm`.
@@ -63,7 +64,7 @@ Supported server status filters are `running`, `stopped`, `starting`, `stopping`
 
 Terminal output capture sends vanilla `data get storage` marker commands before and after the target command, then returns the log lines captured between those markers.
 
-Execution voting no longer uses the old text progress messages. QQ official bot sessions render input buttons; QQ inserts `@bot` plus the vote word, and the plugin accepts that at-mention reply. Other adapters render the vote as an image; users still vote with `mcsm.vote yes` or `mcsm.vote no`.
+Execution voting no longer uses the old text progress messages. QQ official bot sessions render input buttons; QQ inserts `@bot` plus the vote word, and the plugin accepts that at-mention reply. Other adapters render the vote as an image; users still vote with `mcsm.vote yes` or `mcsm.vote no`. Vote timeout is reported as text to avoid sending a second progress image after the initial vote image.
 
 ## Customization Notes
 
