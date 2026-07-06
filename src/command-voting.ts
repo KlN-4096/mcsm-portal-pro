@@ -82,9 +82,6 @@ function waitForVote(
     });
     runtime.timer = setTimeout(() => finishVote(runtime, "timeout"), vote.timeout);
     runtime.disposers.push(createMessageVoteMiddleware(runtime));
-    if (runtime.presentation === "qq-button") {
-      runtime.disposers.push(createButtonVoteListener(runtime));
-    }
     sendVoteUpdate(runtime, "active").catch((error) => failVote(runtime, error));
   });
 }
@@ -109,17 +106,8 @@ function createVoteRuntime(options: Pick<
 function createMessageVoteMiddleware(runtime: VoteRuntime) {
   return runtime.ctx.middleware(async (voteSession, next) => {
     if (!isSameVoteScope(runtime, voteSession)) return next();
-    const decision = parseVoteDecision(voteSession.content, runtime.vote.command);
+    const decision = parseVoteDecision(voteSession, runtime.vote.command);
     if (!decision) return next();
-    submitVote(runtime, voteSession.userId, decision);
-  });
-}
-
-function createButtonVoteListener(runtime: VoteRuntime) {
-  return runtime.ctx.on("interaction/button", (voteSession) => {
-    if (!isSameVoteScope(runtime, voteSession)) return;
-    const decision = parseVoteButton(voteSession, runtime.voteId);
-    if (!decision) return;
     submitVote(runtime, voteSession.userId, decision);
   });
 }
@@ -165,22 +153,27 @@ function invalidatePendingVoteRenders(runtime: VoteRuntime) {
   runtime.renderVersion += 1;
 }
 
-function parseVoteDecision(content: string, command: string): VoteDecision | undefined {
+function parseVoteDecision(session: Session, command: string): VoteDecision | undefined {
+  return parseCommandVote(session.content, command) ?? parseMentionVote(session);
+}
+
+function parseCommandVote(content: string, command: string): VoteDecision | undefined {
   const [head, decision] = content.trim().split(/\s+/);
   if (head !== command) return;
-  const normalized = decision?.toLowerCase();
-  if (["yes", "y", "同意", "赞成"].includes(normalized)) return "yes";
-  if (["no", "n", "否", "反对"].includes(normalized)) return "no";
+  return parseDecisionWord(decision);
 }
 
-function parseVoteButton(session: Session, voteId: string): VoteDecision | undefined {
-  const button = (session.event as { button?: { id?: string; data?: string } }).button;
-  return parseVoteButtonId(button?.id, voteId) ?? parseVoteButtonId(button?.data, voteId);
+function parseMentionVote(session: Session): VoteDecision | undefined {
+  const { atSelf, content } = session.stripped;
+  if (!atSelf) return;
+  return parseDecisionWord(content);
 }
 
-function parseVoteButtonId(value: string | undefined, voteId: string): VoteDecision | undefined {
-  if (value === createVoteButtonId(voteId, "yes")) return "yes";
-  if (value === createVoteButtonId(voteId, "no")) return "no";
+function parseDecisionWord(word: string | undefined): VoteDecision | undefined {
+  const normalized = word?.trim().toLowerCase();
+  if (!normalized) return;
+  if (["yes", "y", "approve", "同意", "赞成"].includes(normalized)) return "yes";
+  if (["no", "n", "reject", "否", "否决", "反对"].includes(normalized)) return "no";
 }
 
 async function sendVoteUpdate(
@@ -218,15 +211,21 @@ function renderQQVoteMessage(
     h("button-group", {},
       h("button", {
         id: createVoteButtonId(runtime.voteId, "yes"),
-        type: "action",
+        type: "input",
+        text: createVoteInputText(runtime, "yes"),
         class: "primary",
       }, runtime.t("exec-vote-approve")),
       h("button", {
         id: createVoteButtonId(runtime.voteId, "no"),
-        type: "action",
+        type: "input",
+        text: createVoteInputText(runtime, "no"),
       }, runtime.t("exec-vote-reject")),
     ),
   ];
+}
+
+function createVoteInputText(runtime: VoteRuntime, decision: VoteDecision) {
+  return decision === "yes" ? runtime.t("exec-vote-approve") : runtime.t("exec-vote-reject");
 }
 
 function createVoteVisualizationState(

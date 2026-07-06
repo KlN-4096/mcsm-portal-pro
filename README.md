@@ -61,7 +61,7 @@ Supported server status filters are `running`, `stopped`, `starting`, `stopping`
 
 Terminal output capture sends vanilla `data get storage` marker commands before and after the target command, then returns the log lines captured between those markers.
 
-Execution voting no longer uses the old text progress messages. QQ official bot sessions render action buttons and receive clicks through Koishi's `interaction/button` event. Other adapters render the vote as an image; users still vote with `mcsm.vote yes` or `mcsm.vote no`. QQ buttons require the QQ adapter to subscribe to the `INTERACTIONS` intent.
+Execution voting no longer uses the old text progress messages. QQ official bot sessions render input buttons; QQ inserts `@bot` plus the vote word, and the plugin accepts that at-mention reply. Other adapters render the vote as an image; users still vote with `mcsm.vote yes` or `mcsm.vote no`.
 
 ## Customization Notes
 
