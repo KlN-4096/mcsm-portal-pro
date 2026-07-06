@@ -18,46 +18,45 @@ interface ConsoleLike {
   addListener(event: string, callback: () => unknown): void;
 }
 
-interface ConsoleContext extends Context {
-  console?: ConsoleLike;
-}
+type ConsoleContext = Context & { console: ConsoleLike };
 
 export function registerPreviewEntry(ctx: Context, config: Config, client: MCSManagerClient) {
   if (!config.preview.enabled) return;
 
-  const console = (ctx as ConsoleContext).console;
-  if (!console) return;
+  ctx.inject(["console"], (ctx) => {
+    const console = (ctx as ConsoleContext).console;
 
-  console.addListener("mcsm-portal-pro/preview-data", async () => {
-    if (!client.configured) {
-      return {
-        ok: false,
-        error: "MCSManager endpoint or API key is not configured.",
-      };
-    }
+    console.addListener("mcsm-portal-pro/preview-data", async () => {
+      if (!client.configured) {
+        return {
+          ok: false,
+          error: "MCSManager endpoint or API key is not configured.",
+        };
+      }
 
-    try {
-      return {
-        ok: true,
-        data: withTextPreviews(await createRealPreviewData(config, client), config),
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  });
+      try {
+        return {
+          ok: true,
+          data: withTextPreviews(await createRealPreviewData(config, client), config),
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
 
-  console.addEntry({
-    dev: resolve(__dirname, "../client/index.ts"),
-    prod: resolve(__dirname, "../dist"),
-  }, () => {
-    const data = createPreviewEntryData(config, client.configured);
-    return {
-      ...data,
-      mock: withTextPreviews(data.mock, config),
-    };
+    console.addEntry({
+      dev: resolve(__dirname, "../client/index.ts"),
+      prod: resolve(__dirname, "../dist"),
+    }, () => {
+      const data = createPreviewEntryData(config, client.configured);
+      return {
+        ...data,
+        mock: withTextPreviews(data.mock, config),
+      };
+    });
   });
 }
 
