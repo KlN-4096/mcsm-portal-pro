@@ -81,6 +81,7 @@ export interface MinecraftConfig {
   typeKeywords: string[];
   defaultStatuses: InstanceStatus[];
   latencyFallback: LatencyFallbackServiceConfig[];
+  latencyCacheTtl: number;
   latencyFallbackStrategy: "random" | "fallback" | "average";
   latencyFallbackTrigger: "missing" | "local" | "always";
   latencyFallbackLocalThreshold: number;
@@ -182,6 +183,7 @@ const DEFAULT_MINECRAFT_CONFIG: MinecraftConfig = {
   typeKeywords: ["minecraft"],
   defaultStatuses: ["running"],
   latencyFallback: [],
+  latencyCacheTtl: 86400,
   latencyFallbackStrategy: "fallback",
   latencyFallbackTrigger: "local",
   latencyFallbackLocalThreshold: 10,
@@ -388,6 +390,10 @@ export const Config = Schema.intersect([
       )
         .description("Remote latency testing services.")
         .default(DEFAULT_MINECRAFT_CONFIG.latencyFallback),
+      latencyCacheTtl: Schema.number()
+        .description("Remote latency testing result cache TTL, in seconds.")
+        .min(0)
+        .default(DEFAULT_MINECRAFT_CONFIG.latencyCacheTtl),
       latencyFallbackStrategy: Schema.union([
         Schema.const("fallback").description(
           "Use services in order; try the next one if one fails or times out",
@@ -660,6 +666,9 @@ export function createRuntimeConfig(config: ConfigInput): Config {
       latencyFallback: normalizeLatencyFallbackServices(
         config.minecraft?.latencyFallback,
       ),
+      latencyCacheTtl:
+        config.minecraft?.latencyCacheTtl ??
+        DEFAULT_MINECRAFT_CONFIG.latencyCacheTtl,
       latencyFallbackStrategy:
         config.minecraft?.latencyFallbackStrategy ??
         readLegacyLatencyFallbackValue(

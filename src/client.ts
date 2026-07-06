@@ -101,10 +101,13 @@ export class MCSManagerClient {
       return cached;
     }
 
+    const startedAt = Date.now();
     const allInstances = await this.listInstances();
+    const loadedAt = Date.now();
     const instances = await this.enrichMinecraftInstances(
       allInstances.filter((instance) => this.isMinecraftInstance(instance)),
     );
+    const enrichedAt = Date.now();
     const excluded = allInstances.filter((instance) => !this.isMinecraftInstance(instance));
 
     this.debug("minecraft instances filtered", {
@@ -117,6 +120,11 @@ export class MCSManagerClient {
         type: instance.type,
         tags: instance.tags,
       })),
+    });
+    this.debug("minecraft instances timings", {
+      loadMs: loadedAt - startedAt,
+      enrichMs: enrichedAt - loadedAt,
+      totalMs: enrichedAt - startedAt,
     });
 
     this.minecraftInstancesCache = this.writeCache(instances);
@@ -225,6 +233,7 @@ export class MCSManagerClient {
 
   async request<T>(path: string, params: Record<string, string | number | boolean> = {}) {
     this.assertConfigured();
+    const startedAt = Date.now();
 
     const query = {
       ...params,
@@ -250,12 +259,14 @@ export class MCSManagerClient {
       const payload = unwrapResponse<T>(response);
       this.debug("request success", {
         path,
+        ms: Date.now() - startedAt,
         payload: describePayload(payload),
       });
       return payload;
     } catch (error) {
       this.debug("request failed", {
         path,
+        ms: Date.now() - startedAt,
         message: formatErrorMessage(error),
       });
       throw error;
@@ -349,9 +360,18 @@ export class MCSManagerClient {
     return mapConcurrent(instances, 6, async (instance) => {
       if (!instance.address || instance.status !== "running") return instance;
 
+      const startedAt = Date.now();
       try {
         const status = await queryMinecraftStatus(instance.address, timeout);
         const latencyMs = await this.resolveLatency(instance, status.latencyMs, timeout);
+        this.debug("minecraft status query result", {
+          id: instance.id,
+          name: instance.name,
+          address: instance.address,
+          ms: Date.now() - startedAt,
+          statusLatencyMs: status.latencyMs,
+          latencyMs,
+        });
         return {
           ...instance,
           onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
@@ -367,6 +387,7 @@ export class MCSManagerClient {
           id: instance.id,
           name: instance.name,
           address: instance.address,
+          ms: Date.now() - startedAt,
           message: formatErrorMessage(error),
         });
         return instance;
@@ -393,6 +414,7 @@ export class MCSManagerClient {
         return instance;
       }
 
+      const startedAt = Date.now();
       try {
         const output = await this.executeInstanceCommand(
           instance,
@@ -406,6 +428,7 @@ export class MCSManagerClient {
           this.debug("minecraft player list output did not match list format", {
             id: instance.id,
             name: instance.name,
+            ms: Date.now() - startedAt,
           });
           return instance;
         }
@@ -416,6 +439,13 @@ export class MCSManagerClient {
         };
         const entry = this.writeCache<MinecraftPlayerListCacheValue>(snapshot);
         if (entry) this.minecraftPlayerListCache.set(cacheKey, entry);
+        this.debug("minecraft player list result", {
+          id: instance.id,
+          name: instance.name,
+          ms: Date.now() - startedAt,
+          players: snapshot.onlinePlayers,
+          playerNames: snapshot.playerNames?.length,
+        });
         return { ...instance, ...snapshot };
       } catch (error) {
         if (error instanceof TerminalMarkerTimeoutError) {
@@ -423,6 +453,7 @@ export class MCSManagerClient {
           this.debug("minecraft player list disabled after terminal marker timeout", {
             id: instance.id,
             name: instance.name,
+            ms: Date.now() - startedAt,
           });
         }
         this.ctx.logger("mcsm-portal-pro").warn(
@@ -502,7 +533,10 @@ export class MCSManagerClient {
         cacheKey,
         timeout,
       );
-      const entry = this.writeCache(latencyMs);
+      const entry = this.writeCache(
+        latencyMs,
+        this.minecraft.latencyCacheTtl * SECOND_MS,
+      );
       if (entry) this.latencyFallbackCache.set(cacheKey, entry);
       this.debug("latency testing service result", {
         id: instance.id,
@@ -594,13 +628,12 @@ export class MCSManagerClient {
 
   private readCache<T>(entry?: CacheEntry<T>) {
     if (!entry) return;
-    if (this.cacheTtl <= 0) return;
     if (entry.expiresAt <= Date.now()) return;
     return entry.value;
   }
 
   private writeCache<T>(value: T, ttlMs = this.cacheTtl * SECOND_MS): CacheEntry<T> | undefined {
-    if (this.cacheTtl <= 0 || ttlMs <= 0) return;
+    if (ttlMs <= 0) return;
     return {
       expiresAt: Date.now() + ttlMs,
       value,

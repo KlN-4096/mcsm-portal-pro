@@ -71,6 +71,7 @@ export const CONFIG_LOCALES = {
           url: "延迟测试服务 URL 模板。支持 {address}、{host} 和 {port}。",
         },
       },
+      latencyCacheTtl: "远程延迟测试结果缓存时间，单位为秒。",
       latencyFallbackStrategy: "多个延迟测试服务的选择方式。",
       latencyFallbackTrigger: "何时使用远程延迟测试服务。",
       latencyFallbackLocalThreshold:

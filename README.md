@@ -34,6 +34,7 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `connection.apiKey`: your MCSManager API key
 - `minecraft.defaultStatuses`: server statuses shown by `mcsm servers` when no status is passed. Defaults to `running`; leave empty to show all statuses.
 - `minecraft.latencyFallback`: optional JSON latency testing services. For example: `https://motd.minebbs.com/api/status?host={host}&port={port}`
+- `minecraft.latencyCacheTtl`: remote latency testing result cache TTL in seconds. Defaults to one day.
 - `output.mode`: `text` or `image`
 - `image.puppeteer`: enable when the Puppeteer service is available
 - `fields.playerNames`: show player names returned by the terminal `list` command

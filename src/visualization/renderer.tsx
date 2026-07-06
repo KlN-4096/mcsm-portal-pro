@@ -84,12 +84,16 @@ export async function renderVisualizationImage(
   config: Config,
   result: VisualizationRenderResult,
 ) {
+  const startedAt = Date.now();
   const puppeteer = (ctx as Context & { puppeteer?: PuppeteerLike }).puppeteer;
   if (!config.image.puppeteer || !puppeteer) {
-    return h.image(renderVisualizationSvgDataUri(result));
+    const image = h.image(renderVisualizationSvgDataUri(result));
+    logRenderTiming(ctx, config, result, startedAt, [{ stage: "svg", ms: Date.now() - startedAt }]);
+    return image;
   }
 
   const page = await puppeteer.page();
+  const pageCreatedAt = Date.now();
   const renderScale = normalizeRenderScale(config.image.renderScale);
   try {
     await page.setViewport({
@@ -97,14 +101,20 @@ export async function renderVisualizationImage(
       height: result.height,
       deviceScaleFactor: renderScale,
     });
-    await page.setContent(createVisualizationHtml(result), {
+    const viewportSetAt = Date.now();
+    const html = createVisualizationHtml(result);
+    const htmlCreatedAt = Date.now();
+    await page.setContent(html, {
       waitUntil: "domcontentloaded",
     });
+    const contentSetAt = Date.now();
     await page.evaluate(WAIT_FOR_PREVIEW_ASSETS_SCRIPT);
+    const assetsReadyAt = Date.now();
     const renderedHeight = normalizeRenderedHeight(
       result.height,
       await page.evaluate<number>(MEASURE_IMAGE_HEIGHT_SCRIPT),
     );
+    const measuredAt = Date.now();
     if (renderedHeight !== result.height) {
       await page.setViewport({
         width: result.width,
@@ -112,6 +122,7 @@ export async function renderVisualizationImage(
         deviceScaleFactor: renderScale,
       });
     }
+    const finalViewportAt = Date.now();
     const buffer = await page.screenshot({
       type: "png",
       clip: {
@@ -121,10 +132,37 @@ export async function renderVisualizationImage(
         height: renderedHeight,
       },
     });
+    logRenderTiming(ctx, config, result, startedAt, [
+      { stage: "create-page", ms: pageCreatedAt - startedAt },
+      { stage: "set-viewport", ms: viewportSetAt - pageCreatedAt },
+      { stage: "create-html", ms: htmlCreatedAt - viewportSetAt, bytes: html.length },
+      { stage: "set-content", ms: contentSetAt - htmlCreatedAt },
+      { stage: "wait-assets", ms: assetsReadyAt - contentSetAt },
+      { stage: "measure", ms: measuredAt - assetsReadyAt },
+      { stage: "final-viewport", ms: finalViewportAt - measuredAt },
+      { stage: "screenshot", ms: Date.now() - finalViewportAt, bytes: buffer.length },
+    ]);
     return h.image(buffer, "image/png");
   } finally {
     await page.close();
   }
+}
+
+function logRenderTiming(
+  ctx: Context,
+  config: Config,
+  result: VisualizationRenderResult,
+  startedAt: number,
+  stages: Array<Record<string, unknown>>,
+) {
+  if (!config.debug) return;
+  ctx.logger("mcsm-portal-pro").info("[debug] visualization render timings %o", {
+    surface: result.layout.surface,
+    width: result.width,
+    height: result.height,
+    totalMs: Date.now() - startedAt,
+    stages,
+  });
 }
 
 function normalizeRenderScale(value: number) {

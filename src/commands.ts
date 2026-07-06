@@ -83,9 +83,28 @@ async function showMinecraftServers(
   client: MCSManagerClient,
   statusInput?: string,
 ) {
+  const startedAt = Date.now();
+  let lastStageAt = startedAt;
+  const stages: Array<Record<string, unknown>> = [];
+  const mark = (stage: string, data: Record<string, unknown> = {}) => {
+    const now = Date.now();
+    stages.push({ stage, ms: now - lastStageAt, ...data });
+    lastStageAt = now;
+  };
+  const logTimings = (data: Record<string, unknown> = {}) => {
+    if (!config.debug) return;
+    ctx.logger("mcsm-portal-pro").info("[debug] mcsm.servers timings %o", {
+      totalMs: Date.now() - startedAt,
+      stages,
+      ...data,
+    });
+  };
+
   try {
     const parsed = resolveStatusFilter(statusInput, config.minecraft.defaultStatuses);
+    mark("parse-status", { ok: parsed.ok });
     if (!parsed.ok) {
+      logTimings({ failed: "invalid-status" });
       return text(session, scope, "servers-invalid-status", {
         status: statusInput,
         statuses: formatStatusChoices(),
@@ -93,13 +112,23 @@ async function showMinecraftServers(
     }
 
     const servers = await client.listMinecraftInstances();
+    mark("load-instances", { count: servers.length });
     const visibleServers = filterServersByStatus(servers, parsed.filter);
+    mark("filter-status", { count: visibleServers.length });
     const displayServers = config.fields.playerNames
       ? await client.enrichMinecraftPlayerLists(visibleServers)
       : visibleServers;
-    return renderServerList(ctx, config, displayServers, createRenderText(session, scope, config));
+    mark("player-list", {
+      enabled: config.fields.playerNames,
+      count: displayServers.length,
+    });
+    const output = await renderServerList(ctx, config, displayServers, createRenderText(session, scope, config));
+    mark("render", { mode: config.output.mode });
+    logTimings();
+    return output;
   } catch (error) {
     const message = formatErrorMessage(session, scope, error);
+    logTimings({ failed: message });
     ctx.logger("mcsm-portal-pro").warn("minecraft server list failed: %s", message);
     return formatServersFailedMessage(session, scope, config, message);
   }
