@@ -137,7 +137,7 @@ function finishVote(runtime: VoteRuntime, outcome: VoteOutcome) {
       ? Promise.resolve()
       : outcome === "timeout"
         ? sendVoteTimeout(runtime)
-        : sendVoteUpdate(runtime, outcome);
+        : runtime.session.send(runtime.t("exec-vote-status-rejected"));
   finalRender.then(() => runtime.resolve(outcome), runtime.reject);
 }
 

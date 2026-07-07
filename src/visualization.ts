@@ -160,6 +160,7 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         latencyMs: 42,
         onlinePlayers: 18,
         maxPlayers: 64,
+        playerNames: ["Steve", "Alex", "Notch", "jeb_", "Dinnerbone", "Dream", "Technoblade", "Ph1LzA"],
         version: "1.20.1",
         motd: "§aVanilla Survival §7- §fLand claims enabled",
         motdSegments: [
@@ -181,6 +182,7 @@ export function createMockPreviewData(config?: Config): VisualizationMockData {
         latencyMs: 136,
         onlinePlayers: 7,
         maxPlayers: 40,
+        playerNames: ["Mumbo", "Grian", "Scar"],
         version: "1.20.4",
         motd: "§bCreative Plots §7| §eShowcase builds welcome",
         motdSegments: [

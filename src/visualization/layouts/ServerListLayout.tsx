@@ -7,7 +7,6 @@ import {
   ImageShell,
   ImageTitleBlock,
   VersionTag,
-  formatPlayerNames,
   formatPlayers,
   serverLatencyLabel,
 } from "./components";
@@ -32,9 +31,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
       </header>
       <section className="grid flex-none gap-1 border-t-2 border-white/20 py-2">
         {data.servers.length ? (
-          data.servers.map((server) => {
-            const playerNames = formatPlayerNames(server, data.text.playerNames);
-            return (
+          data.servers.map((server) => (
               <article
                 key={server.id}
                 className={cn(
@@ -67,15 +64,20 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                 <div className="mt-1 grid min-h-9 grid-rows-[repeat(2,18px)] content-start overflow-hidden leading-[18px]">
                   {renderMotd(server, data.text.defaultMotd)}
                 </div>
-                <p className="m-0 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5 self-end pr-[156px] font-minecraft text-[11px] leading-[13px] opacity-70">
-                  <span className="min-w-0 max-w-full flex-none overflow-hidden text-ellipsis whitespace-nowrap">
-                    {server.address ?? data.text.noAddressConfigured}
-                  </span>
-                  {playerNames ? (
-                    <span className="min-w-0 flex-[1_1_260px] break-words font-minecraft-five text-[#55ff55]">
-                      {playerNames}
-                    </span>
-                  ) : null}
+                {server.playerNames?.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1 pr-[156px]">
+                    {server.playerNames.map((name) => (
+                      <span
+                        key={name}
+                        className="inline-block border-2 border-[#55ff55]/35 bg-[#55ff55]/15 px-2.5 py-0.5 font-minecraft-five text-[11px] leading-none text-[#55ff55]"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="m-0 mt-1 min-w-0 self-end overflow-hidden text-ellipsis whitespace-nowrap pr-[156px] font-minecraft text-[11px] leading-[13px] opacity-70">
+                  {server.address ?? data.text.noAddressConfigured}
                 </p>
               </div>
               <aside className="col-start-3 col-end-4 row-start-1 grid min-h-[60px] min-w-0 w-max max-w-[156px] content-stretch justify-items-end gap-0.5 overflow-hidden grid-rows-[auto_auto_1fr]">
@@ -127,8 +129,7 @@ export function ServerListLayout({ layout, data }: VisualizationLayoutProps) {
                 </small>
               </aside>
               </article>
-            );
-          })
+          ))
         ) : (
           <div className="grid min-h-[180px] place-items-center text-center font-minecraft text-[22px] opacity-75">
             {data.text.noServersAvailable}

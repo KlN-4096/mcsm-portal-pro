@@ -267,9 +267,9 @@ function estimateHeight(layout: CodeAuthoredLayoutDefinition, data: Visualizatio
     return 190 + Math.max(data.nodes.length, 1) * 210;
   }
   if (!data.servers.length) return 480;
-  const playerNameRows = data.servers.reduce((rows, server) => {
-    const namesLength = server.playerNames?.join(", ").length ?? 0;
-    return rows + Math.max(0, Math.ceil(namesLength / 72) - 1);
+  const playerPillRows = data.servers.reduce((rows, server) => {
+    const count = server.playerNames?.length ?? 0;
+    return rows + (count > 0 ? Math.ceil(count / 8) : 0);
   }, 0);
-  return 220 + data.servers.length * 112 + playerNameRows * 16;
+  return 220 + data.servers.length * 112 + playerPillRows * 22;
 }

@@ -180,7 +180,7 @@ const zhCN: LocaleMessages = {
     "exec-vote-reject": "否决",
     "exec-vote-status-active": "投票中",
     "exec-vote-status-passed": "投票通过",
-    "exec-vote-status-rejected": "投票否决",
+    "exec-vote-status-rejected": "投票已否决",
     "exec-vote-status-timeout": "投票超时",
     "refresh-success": "MCSManager 入口缓存已刷新。",
     "error-unknown": "未知错误",

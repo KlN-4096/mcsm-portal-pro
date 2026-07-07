@@ -238,12 +238,6 @@ export function formatPlayers(server: MinecraftInstance, unknown = "unknown") {
   return `${server.onlinePlayers ?? "?"}/${server.maxPlayers ?? "?"}`;
 }
 
-export function formatPlayerNames(server: MinecraftInstance, label: string) {
-  return server.playerNames?.length
-    ? `${label}: ${server.playerNames.join(", ")}`
-    : undefined;
-}
-
 export function serverLatencyLabel(
   server: MinecraftInstance,
   labels: Record<MinecraftInstance["status"], string>,
