@@ -34,6 +34,7 @@ const PLAYER_LIST_CONCURRENCY = 3;
 const PLAYER_LIST_MAX_RESULT_LENGTH = 20000;
 const PLAYER_LIST_QUERY_WAIT_MS = 600;
 const SECOND_MS = 1000;
+const LATENCY_CACHE_BUSTER_PARAM = "_mcsm_ts";
 const COMMAND_OUTPUT_LOG_SIZE = 65536;
 const COMMAND_LOG_WINDOW_LINES = 10000;
 const COMMAND_OUTPUT_WAIT_MS = 20000;
@@ -647,8 +648,9 @@ export class MCSManagerClient {
     address: string,
     timeout: number,
   ) {
-    const url = createLatencyTestingServiceUrl(service.url, address);
-    const response = await this.ctx.http.get<unknown>(url, { timeout });
+    const url = new URL(createLatencyTestingServiceUrl(service.url, address));
+    url.searchParams.set(LATENCY_CACHE_BUSTER_PARAM, String(Date.now()));
+    const response = await this.ctx.http.get<unknown>(url.toString(), { timeout });
     const latencyMs = readLatencyValue(
       response,
       this.minecraft.latencyFallbackKeys,

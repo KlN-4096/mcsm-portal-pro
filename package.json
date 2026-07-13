@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-mcsm-portal-pro",
   "description": "A personal customized fork of KrLite/mcsm-portal for Koishi.",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "homepage": "https://github.com/KlN-4096/mcsm-portal-pro",
