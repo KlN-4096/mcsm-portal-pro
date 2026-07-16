@@ -79,6 +79,8 @@ interface PuppeteerLike {
   }>;
 }
 
+const warnedPuppeteerServices = new WeakSet<PuppeteerLike>();
+
 export async function renderVisualizationImage(
   ctx: Context,
   config: Config,
@@ -92,10 +94,11 @@ export async function renderVisualizationImage(
     return image;
   }
 
-  const page = await puppeteer.page();
-  const pageCreatedAt = Date.now();
-  const renderScale = normalizeRenderScale(config.image.renderScale);
+  let page: Awaited<ReturnType<PuppeteerLike["page"]>> | undefined;
   try {
+    page = await puppeteer.page();
+    const pageCreatedAt = Date.now();
+    const renderScale = normalizeRenderScale(config.image.renderScale);
     await page.setViewport({
       width: result.width,
       height: result.height,
@@ -143,9 +146,31 @@ export async function renderVisualizationImage(
       { stage: "screenshot", ms: Date.now() - finalViewportAt, bytes: buffer.length },
     ]);
     return h.image(buffer, "image/png");
+  } catch (error) {
+    if (!isPuppeteerConnectionError(error)) throw error;
+    warnPuppeteerConnectionClosed(ctx, puppeteer, error);
+    logRenderTiming(ctx, config, result, startedAt, [{ stage: "svg-fallback", ms: Date.now() - startedAt }]);
+    return h.image(renderVisualizationSvgDataUri(result));
   } finally {
-    await page.close();
+    if (page) {
+      await page.close().catch((error) => {
+        if (!isPuppeteerConnectionError(error)) throw error;
+        warnPuppeteerConnectionClosed(ctx, puppeteer, error);
+      });
+    }
   }
+}
+
+function warnPuppeteerConnectionClosed(ctx: Context, puppeteer: PuppeteerLike, error: unknown) {
+  if (warnedPuppeteerServices.has(puppeteer)) return;
+  warnedPuppeteerServices.add(puppeteer);
+  const message = error instanceof Error ? error.message : String(error);
+  ctx.logger("mcsm-portal-pro").warn("Puppeteer connection closed; rendering will retry automatically: %s", message);
+}
+
+function isPuppeteerConnectionError(error: unknown) {
+  return /connection (?:is )?closed|target closed|session closed|browser.*(?:closed|disconnected)|page has been closed/i
+    .test(error instanceof Error ? error.message : String(error));
 }
 
 function logRenderTiming(

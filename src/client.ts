@@ -48,6 +48,7 @@ export class MCSManagerClient {
   private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListCacheValue>>();
   private latencyFallbackCache = new Map<string, CacheEntry<number>>();
   private instanceCommandQueues = new Map<string, Promise<unknown>>();
+  private globalInstanceEndpointUnavailable = false;
 
   constructor(
     private ctx: Context,
@@ -136,12 +137,30 @@ export class MCSManagerClient {
 
   async listInstances() {
     const nodes = await this.listNodes();
-    try {
-      const fromGlobal = await this.listInstancesGlobal(nodes);
-      this.debug("global instance endpoint loaded", { count: fromGlobal.length });
-      if (fromGlobal.length) return fromGlobal;
-    } catch (error) {
-      this.ctx.logger("mcsm-portal-pro").warn("global instance endpoint failed, falling back to per-node queries: %s", formatErrorMessage(error));
+    if (!this.globalInstanceEndpointUnavailable) {
+      try {
+        const fromGlobal = await this.listInstancesGlobal(nodes);
+        this.debug("global instance endpoint loaded", { count: fromGlobal.length });
+        if (fromGlobal.length) return fromGlobal;
+      } catch (error) {
+        const message = formatErrorMessage(error);
+        const errorRecord = toRecord(error);
+        const responseRecord = toRecord(errorRecord?.response);
+        const status = readNumber(errorRecord, "status") ?? readNumber(responseRecord, "status");
+        const normalizedMessage = message.trim().toLowerCase();
+        const endpointUnavailable = status === 404
+          || normalizedMessage === "not found"
+          || /\b(?:http(?: status)?|status(?: code)?|returned)\s+404\b/i.test(message);
+        if (endpointUnavailable) {
+          this.globalInstanceEndpointUnavailable = true;
+          this.debug("global instance endpoint unavailable, using per-node queries", { message });
+        } else {
+          this.ctx.logger("mcsm-portal-pro").warn(
+            "global instance endpoint failed, falling back to per-node queries: %s",
+            message,
+          );
+        }
+      }
     }
 
     this.debug("loading instances per node", { nodes: nodes.map((node) => node.id) });
