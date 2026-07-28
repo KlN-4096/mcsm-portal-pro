@@ -41,6 +41,10 @@ const COMMAND_OUTPUT_WAIT_MS = 20000;
 const COMMAND_OUTPUT_POLL_INTERVAL_MS = 500;
 const COMMAND_MARKER_SETTLE_MS = 1000;
 const COMMAND_MARKER_NAMESPACE = "mcsm_portal";
+const MINECRAFT_PROPERTIES_FILE = "server.properties";
+const MINECRAFT_PROPERTIES_TYPE = "properties";
+const ERROR_DETAIL_MAX_LENGTH = 300;
+const ERROR_DETAIL_MAX_DEPTH = 2;
 
 export class MCSManagerClient {
   private nodesCache?: CacheEntry<NodeStatus[]>;
@@ -106,10 +110,12 @@ export class MCSManagerClient {
     }
 
     const startedAt = Date.now();
-    const allInstances = await this.listInstances();
+    const nodes = await this.listNodes();
+    const allInstances = await this.listInstances(nodes);
     const loadedAt = Date.now();
     const instances = await this.enrichMinecraftInstances(
       allInstances.filter((instance) => this.isMinecraftInstance(instance)),
+      nodes,
     );
     const enrichedAt = Date.now();
     const excluded = allInstances.filter((instance) => !this.isMinecraftInstance(instance));
@@ -135,8 +141,8 @@ export class MCSManagerClient {
     return instances;
   }
 
-  async listInstances() {
-    const nodes = await this.listNodes();
+  async listInstances(knownNodes?: NodeStatus[]) {
+    const nodes = knownNodes ?? await this.listNodes();
     if (!this.globalInstanceEndpointUnavailable) {
       try {
         const fromGlobal = await this.listInstancesGlobal(nodes);
@@ -285,12 +291,13 @@ export class MCSManagerClient {
       });
       return payload;
     } catch (error) {
+      const failure = describeRequestError(error);
       this.debug("request failed", {
         path,
         ms: Date.now() - startedAt,
-        message: formatErrorMessage(error),
+        message: formatErrorMessage(failure),
       });
-      throw error;
+      throw failure;
     }
   }
 
@@ -309,7 +316,7 @@ export class MCSManagerClient {
         status: "",
         tag: "[]",
       });
-      const result = normalizeInstancePage(payload, node, this.getPublicHost(node));
+      const result = normalizeInstancePage(payload, node);
       instances.push(...result.instances);
       if (result.maxPage !== undefined) {
         hasNextPage = page < result.maxPage;
@@ -342,7 +349,7 @@ export class MCSManagerClient {
       instance_name: "",
       status: "",
     });
-    const instances = normalizeGlobalInstances(payload, nodes, (node) => this.getPublicHost(node));
+    const instances = normalizeGlobalInstances(payload, nodes);
     this.debug("global instances normalized", {
       payload: describePayload(payload),
       count: instances.length,
@@ -368,28 +375,36 @@ export class MCSManagerClient {
     return this.minecraft.typeKeywords.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
   }
 
-  private getPublicHost(node: NodeStatus) {
-    const nodeHost = getHostFromAddress(node.address);
-    if (nodeHost && !isLocalHost(nodeHost)) return nodeHost;
-
-    const endpointHost = getHostFromAddress(this.config.endpoint);
-    if (endpointHost && !isLocalHost(endpointHost)) return endpointHost;
-  }
-
-  private async enrichMinecraftInstances(instances: MinecraftInstance[]) {
+  private async enrichMinecraftInstances(
+    instances: MinecraftInstance[],
+    nodes: NodeStatus[],
+  ) {
     const timeout = Math.min(this.config.timeout, 3000);
+    const peerHosts = findUniquePeerHosts(
+      instances,
+      [this.config.endpoint, ...nodes.map((node) => node.address)],
+    );
     return mapConcurrent(instances, 6, async (instance) => {
-      if (!instance.address || instance.status !== "running") return instance;
+      if (instance.status !== "running") return instance;
+
+      const inferred = !instance.address;
+      const address = instance.address ?? await this.inferMinecraftAddress(
+        instance,
+        instance.nodeId ? peerHosts.get(instance.nodeId) : undefined,
+      );
+      if (!address) return instance;
 
       const startedAt = Date.now();
       try {
-        const status = await queryMinecraftStatus(instance.address, timeout);
-        const latencyMs = await this.resolveLatency(instance, status.latencyMs, timeout);
+        const status = await queryMinecraftStatus(address, timeout);
+        const resolvedInstance = inferred ? { ...instance, address } : instance;
+        const latencyMs = await this.resolveLatency(resolvedInstance, status.latencyMs, timeout);
         const playerNames = readCompleteStatusPlayerNames(status);
         this.debug("minecraft status query result", {
           id: instance.id,
           name: instance.name,
-          address: instance.address,
+          address,
+          inferred,
           ms: Date.now() - startedAt,
           statusLatencyMs: status.latencyMs,
           latencyMs,
@@ -398,6 +413,7 @@ export class MCSManagerClient {
         });
         return {
           ...instance,
+          address,
           onlinePlayers: status.onlinePlayers ?? instance.onlinePlayers,
           maxPlayers: status.maxPlayers ?? instance.maxPlayers,
           playerNames: playerNames ?? instance.playerNames,
@@ -411,13 +427,49 @@ export class MCSManagerClient {
         this.debug("minecraft status query failed", {
           id: instance.id,
           name: instance.name,
-          address: instance.address,
+          address,
+          inferred,
           ms: Date.now() - startedAt,
           message: formatErrorMessage(error),
         });
         return instance;
       }
     });
+  }
+
+  private async inferMinecraftAddress(
+    instance: MinecraftInstance,
+    peerHost?: string,
+  ) {
+    if (!instance.nodeId || !peerHost) return;
+
+    try {
+      const properties = await this.request<unknown>(
+        "/api/protected_instance/process_config/file",
+        {
+          daemonId: instance.nodeId,
+          uuid: instance.id,
+          fileName: MINECRAFT_PROPERTIES_FILE,
+          type: MINECRAFT_PROPERTIES_TYPE,
+        },
+      );
+      const port = readMinecraftServerPort(properties);
+      if (!port) {
+        this.debug("minecraft address inference skipped", {
+          id: instance.id,
+          name: instance.name,
+          reason: "server-port is missing or invalid",
+        });
+        return;
+      }
+      return formatAddress(peerHost, port);
+    } catch (error) {
+      this.debug("minecraft address inference failed", {
+        id: instance.id,
+        name: instance.name,
+        message: formatErrorMessage(error),
+      });
+    }
   }
 
   async enrichMinecraftPlayerLists(instances: MinecraftInstance[]) {
@@ -892,6 +944,62 @@ function formatErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// MCSManager answers rejected requests with a bare HTTP status such as 403 Forbidden and
+// explains the real reason in the response body, so the body is appended to the error message.
+function describeRequestError(error: unknown) {
+  if (!(error instanceof Error)) return error;
+  const detail = readResponseErrorDetail(error);
+  if (!detail) return error;
+
+  const message = error.message.trim();
+  if (message.includes(detail)) return error;
+  error.message = message ? `${message}: ${detail}` : detail;
+  return error;
+}
+
+function readResponseErrorDetail(error: Error) {
+  const record = toRecord(error);
+  const response = toRecord(record?.response);
+  return readErrorDetailText(response?.data) ?? readErrorDetailText(record?.data);
+}
+
+function readErrorDetailText(value: unknown, depth = 0): string | undefined {
+  if (depth > ERROR_DETAIL_MAX_DEPTH) return;
+
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return;
+    const parsed = parseJsonBody(text);
+    if (parsed !== undefined) return readErrorDetailText(parsed, depth + 1);
+    // Reverse proxies answer with HTML error pages that are noise in chat output.
+    if (text.startsWith("<")) return;
+    return normalizeErrorDetailText(text);
+  }
+
+  const record = toRecord(value);
+  const message = readString(record, "data") ??
+    readString(record, "message") ??
+    readString(record, "error");
+  return message ? normalizeErrorDetailText(message) : undefined;
+}
+
+function parseJsonBody(text: string) {
+  if (!/^[[{"]/.test(text)) return;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return;
+  }
+}
+
+function normalizeErrorDetailText(value: string) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!text) return;
+  return text.length > ERROR_DETAIL_MAX_LENGTH
+    ? `${text.slice(0, ERROR_DETAIL_MAX_LENGTH)}…`
+    : text;
+}
+
 function normalizeNodes(remoteServicesPayload: unknown, remoteSystemsPayload: unknown): NodeStatus[] {
   const services = toArray(remoteServicesPayload).map(toRecord).filter(isRecord);
   const systemRows = toArray(remoteSystemsPayload).map(toRecord).filter(isRecord);
@@ -1048,7 +1156,7 @@ function sumDefined(values: readonly (number | undefined)[]) {
   return numbers.reduce((sum, value) => sum + value, 0);
 }
 
-function normalizeInstancePage(payload: unknown, node: NodeStatus, publicHost?: string) {
+function normalizeInstancePage(payload: unknown, node: NodeStatus) {
   const record = toRecord(payload);
   const data = toArray(record?.data ?? payload);
   const total = record ? readNumber(record, "total") : undefined;
@@ -1060,12 +1168,12 @@ function normalizeInstancePage(payload: unknown, node: NodeStatus, publicHost?: 
     instances: data
       .map(toRecord)
       .filter(isRecord)
-      .map((item) => normalizeInstance(item, node, publicHost))
+      .map((item) => normalizeInstance(item, node))
       .filter((instance): instance is MinecraftInstance => Boolean(instance)),
   };
 }
 
-function normalizeInstance(item: Record<string, unknown>, node: NodeStatus, publicHost?: string): MinecraftInstance | undefined {
+function normalizeInstance(item: Record<string, unknown>, node: NodeStatus): MinecraftInstance | undefined {
   const id = readString(item, "instanceUuid") ?? readString(item, "uuid") ?? readString(item, "id");
   if (!id) return;
 
@@ -1080,7 +1188,7 @@ function normalizeInstance(item: Record<string, unknown>, node: NodeStatus, publ
     tags: readStringArray(config, "tag") ?? readStringArray(item, "tag") ?? readStringArray(item, "tags") ?? [],
     nodeId: node.id,
     nodeName: node.name,
-    address: readPingAddress(config, info, publicHost) ?? readServerAddress(config) ?? readServerAddress(info) ?? readServerAddress(item),
+    address: readPingAddress(config) ?? readServerAddress(config) ?? readServerAddress(info) ?? readServerAddress(item),
     iconUrl: readImageSource(config) ?? readImageSource(info) ?? readImageSource(item),
     onlinePlayers: readNumber(info, "currentPlayers") ?? readNumber(item, "onlinePlayers") ?? readNumber(item, "currentPlayers"),
     maxPlayers: readNumber(info, "maxPlayers") ?? readNumber(item, "maxPlayers"),
@@ -1093,7 +1201,6 @@ function normalizeInstance(item: Record<string, unknown>, node: NodeStatus, publ
 function normalizeGlobalInstances(
   payload: unknown,
   nodes: NodeStatus[],
-  publicHost: (node: NodeStatus) => string | undefined,
 ) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const record = toRecord(payload);
@@ -1109,7 +1216,7 @@ function normalizeGlobalInstances(
     return instances
       .map(toRecord)
       .filter(isRecord)
-      .map((item) => normalizeInstance(item, node, publicHost(node)))
+      .map((item) => normalizeInstance(item, node))
       .filter((instance): instance is MinecraftInstance => Boolean(instance));
   });
 }
@@ -1138,6 +1245,42 @@ function formatAddress(host?: string, port?: number) {
   return `${host}:${port}`;
 }
 
+function findUniquePeerHosts(
+  instances: MinecraftInstance[],
+  excludedAddresses: (string | undefined)[],
+) {
+  const excludedHosts = new Set(
+    excludedAddresses
+      .map(getHostFromAddress)
+      .filter((host): host is string => Boolean(host))
+      .map((host) => host.toLowerCase()),
+  );
+  const hostsByNode = new Map<string, Set<string>>();
+
+  for (const instance of instances) {
+    if (!instance.nodeId || !instance.address) continue;
+    const host = getHostFromAddress(instance.address);
+    if (!host || !isPublicGameHost(host) || excludedHosts.has(host.toLowerCase())) continue;
+    const hosts = hostsByNode.get(instance.nodeId) ?? new Set<string>();
+    hosts.add(host);
+    hostsByNode.set(instance.nodeId, hosts);
+  }
+
+  return new Map(
+    [...hostsByNode]
+      .filter(([, hosts]) => hosts.size === 1)
+      .map(([nodeId, hosts]) => [nodeId, [...hosts][0]]),
+  );
+}
+
+function readMinecraftServerPort(value: unknown) {
+  const properties = toRecord(value);
+  const raw = properties?.["server-port"];
+  const port = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return;
+  return port;
+}
+
 function readServerAddress(record: Record<string, unknown> | undefined) {
   return readString(record, "address") ??
     readString(record, "serverAddress") ??
@@ -1149,55 +1292,13 @@ function readServerAddress(record: Record<string, unknown> | undefined) {
     );
 }
 
-function readPingAddress(
-  config: Record<string, unknown> | undefined,
-  info: Record<string, unknown> | undefined,
-  publicHost?: string,
-) {
+function readPingAddress(config: Record<string, unknown> | undefined) {
   const pingConfig = toRecord(config?.pingConfig);
   if (!pingConfig) return;
 
   const pingHost = readString(pingConfig, "ip");
   const pingPort = readNumber(pingConfig, "port");
   if (pingHost && !isLocalHost(pingHost)) return formatAddress(pingHost, pingPort);
-  if (!publicHost) return pingHost ? formatAddress(pingHost, pingPort) : undefined;
-
-  const publishedPort = findPublishedPort(config, info, pingPort);
-  return formatAddress(publicHost, publishedPort ?? pingPort);
-}
-
-function findPublishedPort(
-  config: Record<string, unknown> | undefined,
-  info: Record<string, unknown> | undefined,
-  targetPort?: number,
-) {
-  const fromAllocated = toArray(info?.allocatedPorts)
-    .map(toRecord)
-    .filter(isRecord)
-    .find((entry) => {
-      const protocol = readString(entry, "protocol")?.toLowerCase();
-      const container = readNumber(entry, "container") ?? readNumber(entry, "PrivatePort");
-      return protocol !== "udp" && (targetPort === undefined || container === targetPort);
-    });
-  const allocatedHost = readString(fromAllocated, "host");
-  const allocatedPort = Number(allocatedHost ?? readNumber(fromAllocated, "PublicPort"));
-  if (Number.isFinite(allocatedPort) && allocatedPort > 0) return allocatedPort;
-
-  const docker = toRecord(config?.docker);
-  const fromDocker = readStringArray(docker, "ports")
-    ?.map(parseDockerPortMapping)
-    .find((entry) => entry && entry.protocol !== "udp" && (targetPort === undefined || entry.containerPort === targetPort));
-  return fromDocker?.hostPort;
-}
-
-function parseDockerPortMapping(value: string) {
-  const match = value.match(/^(?:(?:[^:]+):)?(\d+):(\d+)(?:\/(\w+))?$/);
-  if (!match) return;
-  return {
-    hostPort: Number(match[1]),
-    containerPort: Number(match[2]),
-    protocol: (match[3] ?? "tcp").toLowerCase(),
-  };
 }
 
 function getHostFromAddress(value?: string) {
@@ -1218,6 +1319,18 @@ function isLocalHost(host: string) {
     normalized === "::" ||
     normalized === "::1" ||
     normalized.startsWith("127.");
+}
+
+function isPublicGameHost(host: string) {
+  const normalized = host.toLowerCase();
+  if (isLocalHost(normalized) || normalized.endsWith(".local")) return false;
+  if (/^10\./.test(normalized) || /^192\.168\./.test(normalized)) return false;
+
+  const private172 = normalized.match(/^172\.(\d+)\./);
+  if (private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31) return false;
+  if (/^(?:169\.254|100\.(?:6[4-9]|[78]\d|9\d|1[01]\d|12[0-7]))\./.test(normalized)) return false;
+  if (/^(?:fc|fd|fe8|fe9|fea|feb)[0-9a-f]*:/i.test(normalized)) return false;
+  return true;
 }
 
 function readImageSource(record: Record<string, unknown> | undefined) {
