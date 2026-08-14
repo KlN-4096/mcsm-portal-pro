@@ -71,7 +71,10 @@ function createRuntime(options = {}) {
       operations.push(action);
       if (options.operateError) throw options.operateError;
     },
-    pingMinecraftInstance: async () => {
+    pingMinecraftInstance: async (instance) => {
+      if (options.expectedPingAddress) {
+        assert.equal(instance.address, options.expectedPingAddress);
+      }
       const result = ping.shift();
       if (result instanceof Error) throw result;
     },
@@ -310,6 +313,31 @@ test("a status change after approval prevents the operation API call", async () 
 
   assert.equal(result, "实例已停止，无法执行。");
   assert.deepEqual(runtime.operations, []);
+});
+
+test("start accepts a stopped instance whose address appears after startup", async () => {
+  const stoppedWithoutAddress = server("stopped", null);
+  const runtime = createRuntime({
+    selected: stoppedWithoutAddress,
+    fresh: [
+      stoppedWithoutAddress,
+      stoppedWithoutAddress,
+      server("running", "play.example.com:25565"),
+    ],
+    expectedPingAddress: "play.example.com:25565",
+  });
+
+  const result = await executeInstanceOperation({
+    ctx: runtime.ctx,
+    session: runtime.session,
+    scope: "commands.rc.messages",
+    config: runtime.config,
+    client: runtime.client,
+    action: "start",
+  });
+
+  assert.equal(result, "Minecraft 已响应 Ping，启动完成");
+  assert.deepEqual(runtime.operations, ["start"]);
 });
 
 test("restart observes an interruption before accepting a successful Ping", async () => {

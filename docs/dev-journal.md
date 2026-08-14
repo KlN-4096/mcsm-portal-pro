@@ -1,5 +1,11 @@
 # Development Journal
 
+## 2026-08-14 - Start without a stopped-instance address
+
+- Allowed a stopped instance with no reported address to enter the start workflow.
+- Refreshed the instance before every readiness Ping so an address exposed after startup is used.
+- Kept version 0.0.35 from the existing version-bump commit.
+
 ## 2026-08-14 - Trailing force flag
 
 - Accepted `-f` at either edge of terminal command input so `rc exec list -f` bypasses voting as intended.

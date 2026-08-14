@@ -159,7 +159,7 @@ function validateOperation(
   if (!isAllowedStatus(action, server.status)) {
     return t(`instance-op-status-${server.status}`);
   }
-  if (action !== "stop" && !server.address) {
+  if (action !== "stop" && action !== "start" && !server.address) {
     return t("instance-op-missing-address");
   }
 }
@@ -263,7 +263,10 @@ async function waitForPing(
   server: MinecraftInstance,
   deadline: number,
 ) {
-  return waitUntil(deadline, () => canPing(client, server, deadline));
+  return waitUntil(deadline, async () => {
+    const current = await tryGetFreshInstance(client, server, deadline);
+    return current ? canPing(client, current, deadline) : false;
+  });
 }
 
 async function waitUntil(deadline: number, predicate: () => Promise<boolean>) {
