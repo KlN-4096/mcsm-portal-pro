@@ -4,11 +4,18 @@ const assert = require("node:assert/strict");
 const { requestExecutionVote } = require("../lib/command-voting.js");
 const { createRuntimeConfig } = require("../lib/config.js");
 
-function createSession({ userId, content = "", send, channelId = "channel-1" }) {
+function createSession({
+  userId,
+  content = "",
+  send,
+  channelId = "channel-1",
+  atSelf = false,
+  strippedContent = content,
+}) {
   return {
     userId,
     content,
-    stripped: { atSelf: false, content },
+    stripped: { atSelf, content: strippedContent },
     platform: "qq",
     isDirect: false,
     channelId,
@@ -74,6 +81,16 @@ function createVotingRuntime(executionDelay, options = {}) {
       const voteSession = createSession({ userId, content, send, channelId });
       return middlewares[0](voteSession, async () => {});
     },
+    mentionVote(content, userId = "voter") {
+      const voteSession = createSession({
+        userId,
+        content,
+        send,
+        atSelf: true,
+        strippedContent: content,
+      });
+      return middlewares[0](voteSession, async () => {});
+    },
   };
 }
 
@@ -110,6 +127,47 @@ test("any group member can cancel command execution during the configured delay"
   assert.equal(await result, undefined);
   assert.equal(runtime.messages.at(-1), "指令执行已终止。");
   assert.equal(runtime.middlewares.length, 0);
+});
+
+test("QQ button input accepts a visible bot mention followed by the decision", async () => {
+  const runtime = createVotingRuntime(15);
+  const result = requestExecutionVote(
+    runtime.ctx,
+    runtime.session,
+    runtime.t,
+    runtime.config,
+    { id: "server-1", name: "Server 1" },
+    "say hello",
+  );
+
+  await runtime.mentionVote("@Angela 否决", "rejecter");
+  await flushPromises();
+
+  assert.equal(await result, undefined);
+  assert.equal(runtime.middlewares.length, 0);
+});
+
+test("a visible mention is ignored unless Koishi confirms it targets the bot", async () => {
+  const runtime = createVotingRuntime(15);
+  const result = requestExecutionVote(
+    runtime.ctx,
+    runtime.session,
+    runtime.t,
+    runtime.config,
+    { id: "server-1", name: "Server 1" },
+    "say hello",
+  );
+  let resolved = false;
+  result.then(() => {
+    resolved = true;
+  });
+
+  await runtime.vote("@Angela 否决", "rejecter");
+  await flushPromises();
+  assert.equal(resolved, false);
+
+  await runtime.mentionVote("@Angela 否决", "rejecter");
+  assert.equal(await result, undefined);
 });
 
 test("cancellation releases the vote scope without waiting for its confirmation message", async () => {

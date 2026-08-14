@@ -247,7 +247,11 @@ function parseCommandVote(content: string, command: string): VoteDecision | unde
 function parseMentionVote(session: Session): VoteDecision | undefined {
   const { atSelf, content } = session.stripped;
   if (!atSelf) return;
-  return parseDecisionWord(content);
+  const direct = parseDecisionWord(content);
+  if (direct) return direct;
+
+  const visibleMention = content.trim().match(/^@.+\s+(\S+)$/);
+  return parseDecisionWord(visibleMention?.[1]);
 }
 
 function parseDecisionWord(word: string | undefined): VoteDecision | undefined {

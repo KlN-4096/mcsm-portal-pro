@@ -1,5 +1,10 @@
 # Development Journal
 
+## 2026-08-14 - QQ button vote parsing
+
+- Accepted QQ official button messages whose confirmed at-self content remains `@bot-name decision`.
+- Kept ordinary visible mentions invalid unless Koishi reports `stripped.atSelf`; added both regression cases.
+
 ## 2026-08-14 - Lifecycle command routing
 
 - Moved lifecycle entry points from `rc <action>` to native `server <action>` / `server.<action>` subcommands.
