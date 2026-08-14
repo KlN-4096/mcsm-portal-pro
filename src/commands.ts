@@ -26,10 +26,11 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   const messageScope = `commands.${commandName}.messages`;
 
   ctx.command(`${commandName} [input:text]`, "MCSManager portal", commandOptions)
+    .option("force", "-f")
     .usage((session) => session.text(".usage", { command: commandName }))
-    .action(async ({ session }, input) => {
+    .action(async ({ session, options }, input) => {
       if (!input) return;
-      return dispatchRootAction(ctx, session, messageScope, input, config, client);
+      return dispatchRootAction(ctx, session, messageScope, input, config, client, Boolean(options.force));
     });
 
   ctx.command(`${commandName}.check`, "Check MCSManager API connectivity.", commandOptions)
@@ -49,7 +50,14 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   ctx.command(`${commandName}.exec [input:text]`, "Execute an instance command through the MCSManager terminal.", {
     authority: config.commandExecution.authority,
   })
-    .action(({ session }, input) => executeServerCommand(ctx, session, messageScope, config, client, input));
+    .option("force", "-f")
+    .action(({ session, options }, input) => {
+      const parsed = parseForceInput(input ?? "");
+      return executeServerCommand(ctx, session, messageScope, config, client, {
+        ...parsed,
+        force: Boolean(options.force) || parsed.force,
+      });
+    });
 
   ctx.command(INSTANCE_OPERATION_COMMAND_NAME, "MCSManager instance operations.", {
     authority: config.instanceOperations.authority,
@@ -58,16 +66,32 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   for (const action of INSTANCE_LIFECYCLE_ACTIONS) {
     ctx.command(`${INSTANCE_OPERATION_COMMAND_NAME}.${action}`, `Operate an MCSManager instance: ${action}.`, {
       authority: config.instanceOperations.authority,
-    }).action(({ session }) =>
-      executeInstanceOperation({ ctx, session, scope: messageScope, config, client, action }),
-    );
+    })
+      .option("force", "-f")
+      .action(({ session, options }) => executeInstanceOperation({
+        ctx,
+        session,
+        scope: messageScope,
+        config,
+        client,
+        action,
+        force: options.force,
+      }));
   }
 
   ctx.command(`${commandName}.refresh`, "Refresh cached MCSManager data.", commandOptions)
     .action(({ session }) => refreshCache(session, messageScope, client));
 }
 
-async function dispatchRootAction(ctx: Context, session: Session, scope: string, input: string, config: Config, client: MCSManagerClient) {
+async function dispatchRootAction(
+  ctx: Context,
+  session: Session,
+  scope: string,
+  input: string,
+  config: Config,
+  client: MCSManagerClient,
+  force = false,
+) {
   const [action = "", ...args] = input.trim().split(/\s+/);
   const rest = args.join(" ");
 
@@ -75,10 +99,22 @@ async function dispatchRootAction(ctx: Context, session: Session, scope: string,
   if (action === "status") return showNodeStatus(ctx, session, scope, config, client);
   if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client, rest);
   if (action === "addr" || action === "address") return showServerAddress(ctx, session, scope, config, client, rest);
-  if (action === "exec") return executeServerCommand(ctx, session, scope, config, client, rest);
+  if (action === "exec") {
+    const parsed = parseForceInput(rest);
+    return executeServerCommand(ctx, session, scope, config, client, {
+      ...parsed,
+      force: force || parsed.force,
+    });
+  }
   if (action === "refresh") return refreshCache(session, scope, client);
 
   return text(session, scope, "unknown-action", { action });
+}
+
+function parseForceInput(input: string) {
+  const match = input.match(/^-f(?:\s+([\s\S]*))?$/);
+  if (!match) return { input };
+  return { input: match[1], force: true };
 }
 
 async function checkConnection(session: Session, scope: string, client: MCSManagerClient) {

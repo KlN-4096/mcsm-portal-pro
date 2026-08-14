@@ -129,6 +129,23 @@ test("any group member can cancel command execution during the configured delay"
   assert.equal(runtime.middlewares.length, 0);
 });
 
+test("the initiator can reject their own active vote after the automatic approval", async () => {
+  const runtime = createVotingRuntime(15, { approveCount: 3 });
+  const result = requestExecutionVote(
+    runtime.ctx,
+    runtime.session,
+    runtime.t,
+    runtime.config,
+    { id: "server-1", name: "Server 1" },
+    "say hello",
+  );
+
+  await runtime.vote("vt no", "starter");
+
+  assert.equal(await result, undefined);
+  assert.equal(runtime.middlewares.length, 0);
+});
+
 test("QQ button input accepts a visible bot mention followed by the decision", async () => {
   const runtime = createVotingRuntime(15);
   const result = requestExecutionVote(

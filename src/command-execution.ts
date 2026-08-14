@@ -4,6 +4,7 @@ import type { Config } from "./config";
 import { formatErrorTemplate } from "./error-message";
 import type { MinecraftInstance } from "./types";
 import { requestExecutionVote } from "./command-voting";
+import { hasForceExecutionAuthority } from "./force-execution";
 
 type TextResolver = (key: string, params?: object) => string;
 
@@ -25,35 +26,46 @@ interface ResolveExecutionRequestOptions {
   input?: string;
 }
 
+interface ExecuteServerCommandOptions {
+  input?: string;
+  force?: boolean;
+}
+
 export async function executeServerCommand(
   ctx: Context,
   session: Session,
   scope: string,
   config: Config,
   client: MCSManagerClient,
-  input?: string,
+  options: ExecuteServerCommandOptions = {},
 ) {
   const t: TextResolver = (key, params) => session.text(`${scope}.${key}`, params);
   const execution = config.commandExecution;
   if (!await ctx.permissions.test([`authority:${execution.authority}`], session)) {
     return t("exec-low-authority");
   }
+  if (options.force && !await hasForceExecutionAuthority(ctx, session)) {
+    return t("exec-low-authority");
+  }
   if (!execution.enabled) return t("exec-disabled");
 
   let targetName: string | undefined;
   try {
-    const request = await resolveExecutionRequest({ session, t, config, client, input });
+    const request = await resolveExecutionRequest({ session, t, config, client, input: options.input });
     if (request.type === "message") return request.message;
     targetName = request.server.name;
     const lock = client.tryAcquireInstanceOperation(request.server, "exec");
     if (!lock.acquired) {
       return t("instance-op-locked", {
         operation: t(`instance-op-action-${lock.operation}`),
+        requested: t("instance-op-request-exec"),
       });
     }
 
     try {
-      const approved = await requestExecutionVote(ctx, session, t, config, request.server, request.command);
+      const approved = options.force
+        ? true
+        : await requestExecutionVote(ctx, session, t, config, request.server, request.command);
       if (approved !== true) return approved;
 
       const output = await client.executeInstanceCommand(

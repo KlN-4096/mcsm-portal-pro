@@ -126,6 +126,9 @@ function submitVote(
     if (decision === "no") settleVote(runtime, "cancelled");
     return;
   }
+  if (userId === runtime.session.userId && decision === "no") {
+    return finishVote(runtime, "rejected");
+  }
   if (runtime.voters.has(userId)) return;
   if (decision === "no") return finishVote(runtime, "rejected");
   runtime.voters.add(userId);

@@ -11,11 +11,13 @@ const { executeInstanceOperation } = require("../lib/instance-operations.js");
 const minecraftStatus = require("../lib/minecraft-status.js");
 
 const TEMPLATES = {
+  "instance-op-low-authority": "权限不足。",
   "instance-op-action-exec": "执行终端命令",
   "instance-op-action-start": "启动",
   "instance-op-action-stop": "关闭",
   "instance-op-action-restart": "重启",
   "instance-op-action-kill": "终止并重启",
+  "instance-op-request-exec": "终端命令",
   "instance-op-status-running": "实例正在运行，无法执行。",
   "instance-op-status-stopped": "实例已停止，无法执行。",
   "instance-op-status-starting": "实例正在启动，无法执行。",
@@ -23,7 +25,7 @@ const TEMPLATES = {
   "instance-op-status-unknown": "实例状态未知，无法执行。",
   "instance-op-missing-node": "缺少节点 ID，无法执行。",
   "instance-op-missing-address": "无法获取服务器地址，无法执行。",
-  "instance-op-locked": "实例正在{operation}，无法操作。",
+  "instance-op-locked": "实例已有操作进行中（{operation}），无法执行{requested}。",
   "instance-op-progress-start": "正在启动，等待 Minecraft 响应",
   "instance-op-progress-stop": "正在关闭",
   "instance-op-progress-restart": "正在重启，等待 Minecraft 响应",
@@ -408,8 +410,51 @@ test("a locked instance does not start another vote or API operation", async () 
     action: "restart",
   });
 
-  assert.equal(result, "实例正在执行终端命令，无法操作。");
+  assert.equal(result, "实例已有操作进行中（执行终端命令），无法执行重启。");
   assert.deepEqual(runtime.operations, []);
+});
+
+test("force lifecycle execution requires authority 5 and skips voting", async () => {
+  const checked = [];
+  const runtime = createRuntime();
+  runtime.ctx.permissions.test = async ([permission]) => {
+    checked.push(permission);
+    return permission !== "authority:5";
+  };
+
+  const denied = await executeInstanceOperation({
+    ctx: runtime.ctx,
+    session: runtime.session,
+    scope: "commands.rc.messages",
+    config: runtime.config,
+    client: runtime.client,
+    action: "stop",
+    force: true,
+  });
+
+  assert.equal(denied, "权限不足。");
+  assert.deepEqual(checked, ["authority:3", "authority:5"]);
+  assert.deepEqual(runtime.operations, []);
+});
+
+test("authority 5 can force lifecycle execution without starting a vote", async () => {
+  const runtime = createRuntime({
+    fresh: [server(), server(), server("stopped")],
+  });
+  runtime.config.commandExecution.voting.approveCount = 2;
+
+  const result = await executeInstanceOperation({
+    ctx: runtime.ctx,
+    session: runtime.session,
+    scope: "commands.rc.messages",
+    config: runtime.config,
+    client: runtime.client,
+    action: "stop",
+    force: true,
+  });
+
+  assert.equal(result, "关闭完成");
+  assert.deepEqual(runtime.operations, ["stop"]);
 });
 
 test("a lifecycle lock blocks the real terminal execution workflow", async () => {
@@ -456,11 +501,58 @@ test("a lifecycle lock blocks the real terminal execution workflow", async () =>
       "commands.rc.messages",
       config,
       client,
-      "say hello",
+      { input: "say hello" },
     );
-    assert.equal(result, "实例正在重启，无法操作。");
+    assert.equal(result, "实例已有操作进行中（重启），无法执行终端命令。");
     assert.equal(executions, 0);
   } finally {
     lifecycleLock.release();
   }
+});
+
+test("authority 5 can force terminal execution without starting a vote", async () => {
+  const checked = [];
+  const instance = server();
+  const client = {
+    listMinecraftInstances: async () => [instance],
+    tryAcquireInstanceOperation: () => ({ acquired: true, release() {} }),
+    executeInstanceCommand: async (_server, command) => `sent: ${command}`,
+  };
+  const ctx = {
+    permissions: {
+      test: async ([permission]) => {
+        checked.push(permission);
+        return true;
+      },
+    },
+    logger: () => ({ warn() {} }),
+  };
+  const session = {
+    text: (key, params = {}) => Object.entries(params).reduce(
+      (text, [param, value]) => text.replace(`{${param}}`, String(value)),
+      TEMPLATES[key.split(".").at(-1)] ?? key.split(".").at(-1),
+    ),
+  };
+  const config = {
+    commandExecution: {
+      enabled: true,
+      authority: 3,
+      selectionTimeout: 60_000,
+      commandTimeout: 60_000,
+      maxResultLength: 1800,
+      voting: { enabled: true, approveCount: 2 },
+    },
+  };
+
+  const result = await executeServerCommand(
+    ctx,
+    session,
+    "commands.rc.messages",
+    config,
+    client,
+    { input: "say hello", force: true },
+  );
+
+  assert.equal(result, "exec-result");
+  assert.deepEqual(checked, ["authority:3", "authority:5"]);
 });

@@ -6,6 +6,7 @@ import {
 } from "./client";
 import type { Config } from "./config";
 import { requestExecutionVote } from "./command-voting";
+import { hasForceExecutionAuthority } from "./force-execution";
 import type { InstanceStatus, MinecraftInstance } from "./types";
 
 export type InstanceLifecycleAction = Exclude<InstanceOperationName, "exec">;
@@ -23,6 +24,7 @@ interface InstanceOperationRequest {
   config: Config;
   client: MCSManagerClient;
   action: InstanceLifecycleAction;
+  force?: boolean;
 }
 
 interface SelectedOperationRequest extends Omit<InstanceOperationRequest, "scope"> {
@@ -48,6 +50,9 @@ export async function executeInstanceOperation(options: InstanceOperationRequest
   if (!await ctx.permissions.test([`authority:${config.instanceOperations.authority}`], session)) {
     return t("instance-op-low-authority");
   }
+  if (options.force && !await hasForceExecutionAuthority(ctx, session)) {
+    return t("instance-op-low-authority");
+  }
   if (!config.instanceOperations.enabled) return t("instance-op-disabled");
 
   let targetName: string | undefined;
@@ -63,6 +68,7 @@ export async function executeInstanceOperation(options: InstanceOperationRequest
       client,
       selected: selection.server,
       action,
+      force: options.force,
     });
   } catch (error) {
     const message = formatErrorMessage(t, error);
@@ -116,18 +122,21 @@ async function executeSelectedOperation(options: SelectedOperationRequest) {
   if (!lock.acquired) {
     return t("instance-op-locked", {
       operation: t(`instance-op-action-${lock.operation}`),
+      requested: t(`instance-op-action-${action}`),
     });
   }
 
   try {
-    const approved = await requestExecutionVote(
-      ctx,
-      session,
-      t,
-      config,
-      server!,
-      t(`instance-op-action-${action}`),
-    );
+    const approved = options.force
+      ? true
+      : await requestExecutionVote(
+        ctx,
+        session,
+        t,
+        config,
+        server!,
+        t(`instance-op-action-${action}`),
+      );
     if (approved !== true) return approved;
 
     const current = await client.getFreshMinecraftInstance(server!);

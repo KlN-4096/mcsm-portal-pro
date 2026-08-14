@@ -1,13 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { App } = require("koishi");
+const { App, Argv } = require("koishi");
 
 const { registerCommands } = require("../lib/commands.js");
 const { createRuntimeConfig } = require("../lib/config.js");
-
-function token(content) {
-  return { content, inters: [], quoted: false, terminator: "" };
-}
 
 function resolveInput(commander, input) {
   const session = {
@@ -16,12 +12,26 @@ function resolveInput(commander, input) {
     stripped: { appel: true, prefix: "", content: input },
     resolve: (value) => value,
   };
-  const argv = {
+  const argv = Object.assign(Argv.parse(input), {
     root: true,
     session,
-    tokens: input.split(/\s+/).map(token),
-  };
+  });
   return commander.inferCommand(argv)?.name;
+}
+
+function parseInput(commander, input) {
+  const session = {
+    isDirect: true,
+    quote: undefined,
+    stripped: { appel: true, prefix: "", content: input },
+    resolve: (value) => value,
+  };
+  const argv = Object.assign(Argv.parse(input), {
+    root: true,
+    session,
+  });
+  const command = commander.inferCommand(argv);
+  return command.parse(argv);
 }
 
 test("server lifecycle commands use native space and dot subcommand routing", () => {
@@ -33,7 +43,13 @@ test("server lifecycle commands use native space and dot subcommand routing", ()
   registerCommands(app, config, {});
 
   assert.equal(resolveInput(app.$commander, "server kill"), "server.kill");
+  assert.equal(resolveInput(app.$commander, "server stop -f"), "server.stop");
   assert.equal(app.$commander.resolve("server.kill")?.name, "server.kill");
   assert.equal(app.$commander.resolve("rc.kill"), undefined);
   assert.equal(resolveInput(app.$commander, "rc exec kill"), "rc");
+  assert.equal(resolveInput(app.$commander, "rc exec -f kill"), "rc");
+  assert.deepEqual(parseInput(app.$commander, "rc exec -f kill").args, ["exec -f kill"]);
+  assert.deepEqual(parseInput(app.$commander, "server stop -f").options, { force: true });
+  assert.deepEqual(parseInput(app.$commander, "rc.exec -f kill").args, ["kill"]);
+  assert.deepEqual(parseInput(app.$commander, "rc.exec -f kill").options, { force: true });
 });

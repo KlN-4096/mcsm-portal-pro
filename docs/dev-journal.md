@@ -1,5 +1,11 @@
 # Development Journal
 
+## 2026-08-14 - Force execution and vote cancellation
+
+- Added authority-5-only `-f` execution for terminal and lifecycle commands; it skips voting/delay but preserves validation and instance locking.
+- Allowed a vote initiator to reject their own active vote after automatic approval.
+- Reworded cross-chat lock conflicts to distinguish an active operation from the instance's reported lifecycle status.
+
 ## 2026-08-14 - QQ button vote parsing
 
 - Accepted QQ official button messages whose confirmed at-self content remains `@bot-name decision`.
