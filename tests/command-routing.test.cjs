@@ -4,6 +4,7 @@ const { App, Argv } = require("koishi");
 
 const { registerCommands } = require("../lib/commands.js");
 const { createRuntimeConfig } = require("../lib/config.js");
+const { parseForceInput } = require("../lib/force-execution.js");
 
 function resolveInput(commander, input) {
   const session = {
@@ -52,4 +53,11 @@ test("server lifecycle commands use native space and dot subcommand routing", ()
   assert.deepEqual(parseInput(app.$commander, "server stop -f").options, { force: true });
   assert.deepEqual(parseInput(app.$commander, "rc.exec -f kill").args, ["kill"]);
   assert.deepEqual(parseInput(app.$commander, "rc.exec -f kill").options, { force: true });
+});
+
+test("terminal force flag is accepted at either edge without consuming middle command flags", () => {
+  assert.deepEqual(parseForceInput("-f list"), { input: "list", force: true });
+  assert.deepEqual(parseForceInput("list -f"), { input: "list", force: true });
+  assert.deepEqual(parseForceInput("-f list -f"), { input: "list", force: true });
+  assert.deepEqual(parseForceInput("say -f hello"), { input: "say -f hello", force: false });
 });

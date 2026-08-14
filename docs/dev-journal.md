@@ -1,5 +1,10 @@
 # Development Journal
 
+## 2026-08-14 - Trailing force flag
+
+- Accepted `-f` at either edge of terminal command input so `rc exec list -f` bypasses voting as intended.
+- Kept middle `-f` tokens as part of the Minecraft command.
+
 ## 2026-08-14 - Force execution and vote cancellation
 
 - Added authority-5-only `-f` execution for terminal and lifecycle commands; it skips voting/delay but preserves validation and instance locking.

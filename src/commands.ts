@@ -3,6 +3,7 @@ import type { MCSManagerClient } from "./client";
 import { executeServerCommand } from "./command-execution";
 import { resolveNodeImageTitle, type Config } from "./config";
 import { formatErrorTemplate } from "./error-message";
+import { parseForceInput } from "./force-execution";
 import {
   executeInstanceOperation,
   INSTANCE_OPERATION_COMMAND_NAME,
@@ -109,12 +110,6 @@ async function dispatchRootAction(
   if (action === "refresh") return refreshCache(session, scope, client);
 
   return text(session, scope, "unknown-action", { action });
-}
-
-function parseForceInput(input: string) {
-  const match = input.match(/^-f(?:\s+([\s\S]*))?$/);
-  if (!match) return { input };
-  return { input: match[1], force: true };
 }
 
 async function checkConnection(session: Session, scope: string, client: MCSManagerClient) {
