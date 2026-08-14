@@ -45,17 +45,28 @@ export async function executeServerCommand(
     const request = await resolveExecutionRequest({ session, t, config, client, input });
     if (request.type === "message") return request.message;
     targetName = request.server.name;
-    const approved = await requestExecutionVote(ctx, session, t, config, request.server, request.command);
-    if (approved !== true) return approved;
+    const lock = client.tryAcquireInstanceOperation(request.server, "exec");
+    if (!lock.acquired) {
+      return t("instance-op-locked", {
+        operation: t(`instance-op-action-${lock.operation}`),
+      });
+    }
 
-    const output = await client.executeInstanceCommand(
-      request.server,
-      request.command,
-      config.commandExecution.maxResultLength,
-    );
-    return output
-      ? t("exec-result", { name: request.server.name, output })
-      : t("exec-no-output", { name: request.server.name });
+    try {
+      const approved = await requestExecutionVote(ctx, session, t, config, request.server, request.command);
+      if (approved !== true) return approved;
+
+      const output = await client.executeInstanceCommand(
+        request.server,
+        request.command,
+        config.commandExecution.maxResultLength,
+      );
+      return output
+        ? t("exec-result", { name: request.server.name, output })
+        : t("exec-no-output", { name: request.server.name });
+    } finally {
+      lock.release();
+    }
   } catch (error) {
     const message = formatErrorMessage(t, error);
     ctx.logger("mcsm-portal-pro").warn(

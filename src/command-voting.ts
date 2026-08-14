@@ -10,9 +10,13 @@ import {
 } from "./visualization/renderer";
 
 type TextResolver = (key: string, params?: object) => string;
-type VoteOutcome = "passed" | "rejected" | "timeout";
+type VoteOutcome = "passed" | "rejected" | "timeout" | "cancelled";
 type VoteDecision = "yes" | "no";
 type VotePresentation = "qq-button" | "image";
+type VotePhase = "voting" | "pending-execution" | "settled";
+type VotePresentationStatus = Exclude<VoteOutcome, "cancelled"> | "active";
+
+const MILLISECONDS_PER_SECOND = 1000;
 
 interface VoteRuntime {
   ctx: Context;
@@ -26,7 +30,7 @@ interface VoteRuntime {
   presentation: VotePresentation;
   voters: Set<string>;
   approvals: number;
-  settled: boolean;
+  phase: VotePhase;
   renderVersion: number;
   timer?: ReturnType<typeof setTimeout>;
   disposers: Array<() => void>;
@@ -82,7 +86,7 @@ function waitForVote(
     });
     runtime.timer = setTimeout(() => finishVote(runtime, "timeout"), vote.timeout);
     runtime.disposers.push(createMessageVoteMiddleware(runtime));
-    sendVoteUpdate(runtime, "active").catch((error) => failVote(runtime, error));
+    sendVoteUpdate(runtime, "active").catch((error) => failVotingUpdate(runtime, error));
   });
 }
 
@@ -97,7 +101,7 @@ function createVoteRuntime(options: Pick<
     presentation: resolveVotePresentation(options.session, options.vote),
     voters,
     approvals: voters.size,
-    settled: false,
+    phase: "voting",
     renderVersion: 0,
     disposers: [],
   };
@@ -117,40 +121,113 @@ function submitVote(
   userId: string | undefined,
   decision: VoteDecision,
 ) {
-  if (runtime.settled || !userId || runtime.voters.has(userId)) return;
+  if (runtime.phase === "settled" || !userId) return;
+  if (runtime.phase === "pending-execution") {
+    if (decision === "no") settleVote(runtime, "cancelled");
+    return;
+  }
+  if (runtime.voters.has(userId)) return;
   if (decision === "no") return finishVote(runtime, "rejected");
   runtime.voters.add(userId);
   runtime.approvals += 1;
   if (runtime.approvals >= runtime.vote.approveCount) {
-    return finishVote(runtime, "passed");
+    beginExecutionDelay(runtime);
+    return;
   }
-  sendVoteUpdate(runtime, "active").catch((error) => failVote(runtime, error));
+  sendVoteUpdate(runtime, "active").catch((error) => failVotingUpdate(runtime, error));
 }
 
-function finishVote(runtime: VoteRuntime, outcome: VoteOutcome) {
-  if (runtime.settled) return;
-  runtime.settled = true;
+function beginExecutionDelay(runtime: VoteRuntime) {
+  if (runtime.phase !== "voting") return;
+  runtime.phase = "pending-execution";
+  invalidatePendingVoteRenders(runtime);
+  clearVoteTimer(runtime);
+  runtime.timer = setTimeout(
+    () => settleVote(runtime, "passed"),
+    runtime.vote.executionDelay * MILLISECONDS_PER_SECOND,
+  );
+  sendExecutionDelayNotice(runtime);
+}
+
+async function sendExecutionDelayNotice(runtime: VoteRuntime) {
+  try {
+    await runtime.session.send(runtime.t("exec-vote-execution-pending", {
+      delay: runtime.vote.executionDelay,
+      voteCommand: runtime.vote.command,
+    }));
+  } catch (error) {
+    logVoteMessageFailure(runtime, "execution delay notice", error);
+  }
+}
+
+async function sendExecutionCancellation(runtime: VoteRuntime) {
+  try {
+    await runtime.session.send(runtime.t("exec-vote-execution-cancelled"));
+  } catch (error) {
+    logVoteMessageFailure(runtime, "command execution cancellation", error);
+  }
+}
+
+function logVoteMessageFailure(runtime: VoteRuntime, description: string, error: unknown) {
+  runtime.ctx.logger("mcsm-portal-pro").warn(
+    "failed to send %s: message=%s",
+    description,
+    formatErrorMessage(error),
+  );
+}
+
+function finishVote(runtime: VoteRuntime, outcome: Exclude<VoteOutcome, "passed">) {
+  settleVote(runtime, outcome);
+}
+
+function settleVote(runtime: VoteRuntime, outcome: VoteOutcome) {
+  if (runtime.phase === "settled") return;
+  runtime.phase = "settled";
   invalidatePendingVoteRenders(runtime);
   disposeVote(runtime);
+  if (outcome === "cancelled") {
+    sendExecutionCancellation(runtime);
+    runtime.resolve(outcome);
+    return;
+  }
   const finalRender =
     outcome === "passed"
       ? Promise.resolve()
       : outcome === "timeout"
         ? sendVoteTimeout(runtime)
         : runtime.session.send(runtime.t("exec-vote-status-rejected"));
-  finalRender.then(() => runtime.resolve(outcome), runtime.reject);
+  finalRender.catch((error) =>
+    logVoteMessageFailure(runtime, `${outcome} vote result`, error),
+  );
+  runtime.resolve(outcome);
+}
+
+function failVotingUpdate(runtime: VoteRuntime, error: unknown) {
+  if (runtime.phase !== "voting") return;
+  failVote(runtime, error);
 }
 
 function failVote(runtime: VoteRuntime, error: unknown) {
-  if (runtime.settled) return;
-  runtime.settled = true;
+  if (runtime.phase === "settled") return;
+  runtime.phase = "settled";
   disposeVote(runtime);
   runtime.reject(error);
 }
 
 function disposeVote(runtime: VoteRuntime) {
-  if (runtime.timer) clearTimeout(runtime.timer);
+  clearVoteTimer(runtime);
   runtime.disposers.forEach((dispose) => dispose());
+}
+
+function clearVoteTimer(runtime: VoteRuntime) {
+  if (!runtime.timer) return;
+  clearTimeout(runtime.timer);
+  runtime.timer = undefined;
+}
+
+function formatErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 function invalidatePendingVoteRenders(runtime: VoteRuntime) {
@@ -182,7 +259,7 @@ function parseDecisionWord(word: string | undefined): VoteDecision | undefined {
 
 async function sendVoteUpdate(
   runtime: VoteRuntime,
-  status: VoteOutcome | "active",
+  status: VotePresentationStatus,
 ) {
   const state = createVoteVisualizationState(runtime, status);
   if (runtime.presentation === "qq-button") {
@@ -207,7 +284,7 @@ function sendVoteTimeout(runtime: VoteRuntime) {
 function renderVoteTextMessage(
   runtime: VoteRuntime,
   state: ExecutionVoteVisualizationState,
-  status: VoteOutcome | "active",
+  status: VotePresentationStatus,
 ) {
   const content = [
     state.title,
@@ -240,7 +317,7 @@ function createVoteInputText(runtime: VoteRuntime, decision: VoteDecision) {
 
 function createVoteVisualizationState(
   runtime: VoteRuntime,
-  status: VoteOutcome | "active",
+  status: VotePresentationStatus,
 ): ExecutionVoteVisualizationState {
   return {
     title: runtime.t("exec-vote-title", { name: runtime.server.name }),
@@ -257,7 +334,7 @@ function createVoteVisualizationState(
   };
 }
 
-function createVoteHint(runtime: VoteRuntime, status: VoteOutcome | "active") {
+function createVoteHint(runtime: VoteRuntime, status: VotePresentationStatus) {
   if (runtime.presentation !== "image" || status !== "active") return "";
   return runtime.t("exec-vote-image-hint", { voteCommand: runtime.vote.command });
 }

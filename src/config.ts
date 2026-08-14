@@ -92,6 +92,7 @@ export interface CommandExecutionVotingConfig {
   enabled: boolean;
   approveCount: number;
   timeout: number;
+  executionDelay: number;
   presentation: "auto" | "qq-button" | "image";
   command: string;
 }
@@ -103,6 +104,12 @@ export interface CommandExecutionConfig {
   commandTimeout: number;
   maxResultLength: number;
   voting: CommandExecutionVotingConfig;
+}
+
+export interface InstanceOperationsConfig {
+  enabled: boolean;
+  authority: number;
+  operationTimeout: number;
 }
 
 export interface ErrorMessagesConfig {
@@ -120,6 +127,7 @@ export interface Config {
   qqInteractions: QQInteractionsConfig;
   minecraft: MinecraftConfig;
   commandExecution: CommandExecutionConfig;
+  instanceOperations: InstanceOperationsConfig;
   errorMessages: ErrorMessagesConfig;
   fields: ServerFieldVisibility;
   cacheTtl: number;
@@ -218,9 +226,15 @@ const DEFAULT_COMMAND_EXECUTION_CONFIG: CommandExecutionConfig = {
     enabled: false,
     approveCount: 2,
     timeout: 60000,
+    executionDelay: 15,
     presentation: "auto",
     command: "mcsm.vote",
   },
+};
+const DEFAULT_INSTANCE_OPERATIONS_CONFIG: InstanceOperationsConfig = {
+  enabled: false,
+  authority: DEFAULT_COMMAND_EXECUTION_CONFIG.authority,
+  operationTimeout: 300000,
 };
 const DEFAULT_ERROR_MESSAGES_CONFIG: ErrorMessagesConfig = {
   serversFailed: "",
@@ -497,6 +511,11 @@ export const Config = Schema.intersect([
           .description("Vote timeout in milliseconds.")
           .min(1000)
           .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout),
+        executionDelay: Schema.number()
+          .description("Delay after a vote passes before executing the command, in seconds.")
+          .min(1)
+          .step(1)
+          .default(DEFAULT_COMMAND_EXECUTION_CONFIG.voting.executionDelay),
         presentation: Schema.union([
           Schema.const("auto").description("QQ buttons when available, otherwise image"),
           Schema.const("qq-button").description("QQ official bot buttons"),
@@ -514,6 +533,23 @@ export const Config = Schema.intersect([
     })
       .default(emptyObjectDefault<CommandExecutionConfig>())
       .description("Command execution")
+      .collapse(),
+    instanceOperations: Schema.object({
+      enabled: Schema.boolean()
+        .description("Enable voted instance start, stop, restart, and kill operations.")
+        .default(DEFAULT_INSTANCE_OPERATIONS_CONFIG.enabled),
+      authority: Schema.number()
+        .description("Minimum authority required to operate instances.")
+        .min(0)
+        .max(5)
+        .default(DEFAULT_INSTANCE_OPERATIONS_CONFIG.authority),
+      operationTimeout: Schema.number()
+        .description("Maximum time for an instance operation to complete, in milliseconds.")
+        .min(1000)
+        .default(DEFAULT_INSTANCE_OPERATIONS_CONFIG.operationTimeout),
+    })
+      .default(emptyObjectDefault<InstanceOperationsConfig>())
+      .description("Instance operations")
       .collapse(),
   }).description("终端执行").collapse(),
   Schema.object({
@@ -722,6 +758,9 @@ export function createRuntimeConfig(config: ConfigInput): Config {
         timeout:
           config.commandExecution?.voting?.timeout ??
           DEFAULT_COMMAND_EXECUTION_CONFIG.voting.timeout,
+        executionDelay:
+          config.commandExecution?.voting?.executionDelay ??
+          DEFAULT_COMMAND_EXECUTION_CONFIG.voting.executionDelay,
         presentation:
           config.commandExecution?.voting?.presentation ??
           DEFAULT_COMMAND_EXECUTION_CONFIG.voting.presentation,
@@ -729,6 +768,17 @@ export function createRuntimeConfig(config: ConfigInput): Config {
           config.commandExecution?.voting?.command ??
           DEFAULT_COMMAND_EXECUTION_CONFIG.voting.command,
       },
+    },
+    instanceOperations: {
+      enabled:
+        config.instanceOperations?.enabled ??
+        DEFAULT_INSTANCE_OPERATIONS_CONFIG.enabled,
+      authority:
+        config.instanceOperations?.authority ??
+        DEFAULT_INSTANCE_OPERATIONS_CONFIG.authority,
+      operationTimeout:
+        config.instanceOperations?.operationTimeout ??
+        DEFAULT_INSTANCE_OPERATIONS_CONFIG.operationTimeout,
     },
     errorMessages: {
       serversFailed:

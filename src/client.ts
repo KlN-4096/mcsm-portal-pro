@@ -28,6 +28,12 @@ interface CacheEntry<T> {
 
 type MinecraftPlayerListSnapshot = Pick<MinecraftInstance, "onlinePlayers" | "maxPlayers" | "playerNames">;
 type MinecraftPlayerListCacheValue = MinecraftPlayerListSnapshot | null;
+export type InstanceOperationName = "exec" | "start" | "stop" | "restart" | "kill";
+
+type InstanceOperationLock = {
+  operation: InstanceOperationName;
+  token: symbol;
+};
 
 const PLAYER_LIST_COMMAND = "list";
 const PLAYER_LIST_CONCURRENCY = 3;
@@ -45,6 +51,21 @@ const MINECRAFT_PROPERTIES_FILE = "server.properties";
 const MINECRAFT_PROPERTIES_TYPE = "properties";
 const ERROR_DETAIL_MAX_LENGTH = 300;
 const ERROR_DETAIL_MAX_DEPTH = 2;
+const AMBIGUOUS_NETWORK_ERROR_CODES = new Set([
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EAI_AGAIN",
+  "ENETDOWN",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EPIPE",
+  "ERR_NETWORK",
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
 
 export class MCSManagerClient {
   private nodesCache?: CacheEntry<NodeStatus[]>;
@@ -52,6 +73,7 @@ export class MCSManagerClient {
   private minecraftPlayerListCache = new Map<string, CacheEntry<MinecraftPlayerListCacheValue>>();
   private latencyFallbackCache = new Map<string, CacheEntry<number>>();
   private instanceCommandQueues = new Map<string, Promise<unknown>>();
+  private activeInstanceOperations = new Map<string, InstanceOperationLock>();
   private globalInstanceEndpointUnavailable = false;
 
   constructor(
@@ -102,8 +124,8 @@ export class MCSManagerClient {
     return nodes;
   }
 
-  async listMinecraftInstances() {
-    const cached = this.readCache(this.minecraftInstancesCache);
+  async listMinecraftInstances(fresh = false) {
+    const cached = fresh ? undefined : this.readCache(this.minecraftInstancesCache);
     if (cached) {
       this.debug("minecraft instances cache hit", { count: cached.length });
       return cached;
@@ -174,6 +196,68 @@ export class MCSManagerClient {
     const instances = batches.flat();
     this.debug("per-node instances loaded", { count: instances.length });
     return instances;
+  }
+
+  async getFreshMinecraftInstance(instance: MinecraftInstance, deadline?: number) {
+    if (!instance.nodeId) return;
+    const node: NodeStatus = {
+      id: instance.nodeId,
+      name: instance.nodeName ?? instance.nodeId,
+      online: true,
+    };
+    const instances = await this.listInstancesByNode(node, instance.name, deadline);
+    const fresh = instances.find((candidate) => candidate.id === instance.id);
+    return fresh ? { ...instance, ...fresh, address: fresh.address ?? instance.address } : undefined;
+  }
+
+  async pingMinecraftInstance(instance: MinecraftInstance, deadline?: number) {
+    if (!instance.address) throw new Error("Minecraft server address is missing.");
+    await queryMinecraftStatus(
+      instance.address,
+      resolveRequestTimeout(Math.min(this.config.timeout, 3000), deadline),
+    );
+  }
+
+  async operateInstance(
+    instance: MinecraftInstance,
+    operation: Exclude<InstanceOperationName, "exec">,
+    deadline?: number,
+  ) {
+    if (!instance.nodeId) throw new Error("MCSManager daemon ID is missing for this instance.");
+    const endpoint = operation === "start" ? "open" : operation;
+    await this.request<unknown>(
+      `/api/protected_instance/${endpoint}`,
+      {
+        daemonId: instance.nodeId,
+        uuid: instance.id,
+      },
+      resolveRequestTimeout(this.config.timeout, deadline),
+    );
+  }
+
+  tryAcquireInstanceOperation(
+    instance: MinecraftInstance,
+    operation: InstanceOperationName,
+  ) {
+    const key = getInstanceCommandKey(instance);
+    const active = this.activeInstanceOperations.get(key);
+    if (active) return { acquired: false as const, operation: active.operation };
+
+    const token = Symbol(operation);
+    this.activeInstanceOperations.set(key, { operation, token });
+    return {
+      acquired: true as const,
+      release: () => {
+        if (this.activeInstanceOperations.get(key)?.token === token) {
+          this.activeInstanceOperations.delete(key);
+        }
+      },
+    };
+  }
+
+  invalidateMinecraftInstanceCache() {
+    this.minecraftInstancesCache = undefined;
+    this.minecraftPlayerListCache.clear();
   }
 
   async executeInstanceCommand(
@@ -252,13 +336,16 @@ export class MCSManagerClient {
 
   clearCache() {
     this.nodesCache = undefined;
-    this.minecraftInstancesCache = undefined;
-    this.minecraftPlayerListCache.clear();
+    this.invalidateMinecraftInstanceCache();
     this.latencyFallbackCache.clear();
     this.debug("cache cleared");
   }
 
-  async request<T>(path: string, params: Record<string, string | number | boolean> = {}) {
+  async request<T>(
+    path: string,
+    params: Record<string, string | number | boolean> = {},
+    timeout = this.config.timeout,
+  ) {
     this.assertConfigured();
     const startedAt = Date.now();
 
@@ -280,7 +367,7 @@ export class MCSManagerClient {
           "X-Requested-With": "XMLHttpRequest",
         },
         params: query,
-        timeout: this.config.timeout,
+        timeout,
       });
 
       const payload = unwrapResponse<T>(response);
@@ -301,21 +388,29 @@ export class MCSManagerClient {
     }
   }
 
-  private async listInstancesByNode(node: NodeStatus) {
+  private async listInstancesByNode(
+    node: NodeStatus,
+    instanceName = "",
+    deadline?: number,
+  ) {
     const pageSize = this.minecraft.pageSize;
     const instances: MinecraftInstance[] = [];
     let page = 1;
     let hasNextPage = true;
 
     while (hasNextPage && page <= 100) {
-      const payload = await this.request<unknown>("/api/service/remote_service_instances", {
-        daemonId: node.id,
-        page,
-        page_size: pageSize,
-        instance_name: "",
-        status: "",
-        tag: "[]",
-      });
+      const payload = await this.request<unknown>(
+        "/api/service/remote_service_instances",
+        {
+          daemonId: node.id,
+          page,
+          page_size: pageSize,
+          instance_name: instanceName,
+          status: "",
+          tag: "[]",
+        },
+        resolveRequestTimeout(this.config.timeout, deadline),
+      );
       const result = normalizeInstancePage(payload, node);
       instances.push(...result.instances);
       if (result.maxPage !== undefined) {
@@ -874,11 +969,48 @@ function unwrapResponse<T>(response: MCSManagerResponse<T> | T) {
   const status = readNumber(response, "status");
   if (status !== undefined && status >= 400) {
     const message = readString(response, "message") ?? readString(response, "error") ?? `MCSManager API returned ${status}.`;
-    throw new Error(message);
+    const error = new Error(message) as Error & { status: number };
+    error.status = status;
+    throw error;
   }
 
   if (!("data" in response)) return response as T;
   return response.data as T;
+}
+
+export function isAmbiguousMCSManagerError(error: unknown) {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    const record = toRecord(current);
+    const response = toRecord(record?.response);
+    const status = readNumber(record, "status") ??
+      readNumber(record, "statusCode") ??
+      readNumber(response, "status") ??
+      readNumber(response, "statusCode");
+    if (status !== undefined) return status >= 500;
+
+    const code = readString(record, "code") ?? readString(response, "code");
+    if (code && AMBIGUOUS_NETWORK_ERROR_CODES.has(code.toUpperCase())) return true;
+    const message = current instanceof Error
+      ? current.message
+      : readString(record, "message") ?? "";
+    if (/network error|fetch failed|socket hang up|timed?\s*out|connection reset/i.test(message)) {
+      return true;
+    }
+    current = record?.cause;
+  }
+  return false;
+}
+
+function resolveRequestTimeout(configuredTimeout: number, deadline?: number) {
+  if (deadline === undefined) return configuredTimeout;
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    const error = new Error("Instance operation timed out.") as Error & { code: string };
+    error.code = "ETIMEDOUT";
+    throw error;
+  }
+  return Math.max(1, Math.min(configuredTimeout, remaining));
 }
 
 function sleep(ms: number) {

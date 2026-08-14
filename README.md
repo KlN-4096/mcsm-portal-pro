@@ -15,6 +15,7 @@ Current project: <https://github.com/KlN-4096/mcsm-portal-pro>
 - Render status and server lists as text or Minecraft-style images.
 - Copy a server address quickly by name, alias, or instance ID.
 - Execute commands through the MCSManager instance terminal, optionally using interactive server selection and chat voting.
+- Start, stop, restart, or kill-and-restart instances after optional chat voting, with per-instance operation locking.
 - Show command execution votes as QQ official bot buttons or Minecraft-style progress images.
 - Customize server-list and terminal-execution failure messages.
 - Optional QQ interaction helpers for reaction mirroring and OneBot-compatible avatar double-tap.
@@ -41,6 +42,9 @@ Install `koishi-plugin-mcsm-portal-pro` for personal use, then configure:
 - `commandExecution.enabled`: enable chat-side command execution through the MCSManager terminal
 - `commandExecution.voting.enabled`: require chat voting before command execution
 - `commandExecution.voting.presentation`: `auto`, `qq-button`, or `image`. `auto` uses QQ official bot buttons on QQ official bot sessions and image progress elsewhere. `qq-button` falls back to image progress outside QQ official bot sessions.
+- `instanceOperations.enabled`: enable `start`, `stop`, `restart`, and `kill` instance operations. Defaults to disabled.
+- `instanceOperations.authority`: minimum authority for instance operations. Defaults to `3`.
+- `instanceOperations.operationTimeout`: total completion timeout in milliseconds. Defaults to five minutes.
 - `errorMessages.execFailed`: custom command-execution failure text. `{message}` is the original error message; `{name}` is the resolved server name and is empty when the failure happens before a server is selected.
 - `preview.enabled`: register a Koishi Console preview page when the Console service is available.
 
@@ -55,6 +59,10 @@ The default root command is `mcsm`.
 | `mcsm servers [status]`      | Show Minecraft server instances by status.               |
 | `mcsm addr <name>`           | Return a matching server address.                        |
 | `mcsm exec [server] [command]` | Execute a command through the MCSManager terminal and show new output. |
+| `mcsm start`                 | Select and start a stopped instance.                     |
+| `mcsm stop`                  | Select and stop a running or starting instance.          |
+| `mcsm restart`               | Select and restart a running or starting instance.       |
+| `mcsm kill`                  | Select, kill, and start a stuck instance.                 |
 | `mcsm refresh`               | Refresh cached MCSManager data.                          |
 
 Dot commands such as `mcsm.status` are also supported.

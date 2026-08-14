@@ -3,10 +3,21 @@ import type { MCSManagerClient } from "./client";
 import { executeServerCommand } from "./command-execution";
 import { resolveNodeImageTitle, type Config } from "./config";
 import { formatErrorTemplate } from "./error-message";
+import {
+  executeInstanceOperation,
+  type InstanceLifecycleAction,
+} from "./instance-operations";
 import { renderNodeStatus, renderServerList } from "./render";
 import type { RenderText } from "./render-text";
 import { resolveServerAddress } from "./servers";
 import { filterServersByStatus, formatStatusChoices, resolveStatusFilter } from "./status-filter";
+
+const INSTANCE_LIFECYCLE_ACTIONS: readonly InstanceLifecycleAction[] = [
+  "start",
+  "stop",
+  "restart",
+  "kill",
+];
 
 export function registerCommands(ctx: Context, config: Config, client: MCSManagerClient) {
   const commandName = config.command.name.trim() || "mcsm";
@@ -39,6 +50,14 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   })
     .action(({ session }, input) => executeServerCommand(ctx, session, messageScope, config, client, input));
 
+  for (const action of INSTANCE_LIFECYCLE_ACTIONS) {
+    ctx.command(`${commandName}.${action}`, `Operate an MCSManager instance: ${action}.`, {
+      authority: config.instanceOperations.authority,
+    }).action(({ session }) =>
+      executeInstanceOperation({ ctx, session, scope: messageScope, config, client, action }),
+    );
+  }
+
   ctx.command(`${commandName}.refresh`, "Refresh cached MCSManager data.", commandOptions)
     .action(({ session }) => refreshCache(session, messageScope, client));
 }
@@ -52,9 +71,16 @@ async function dispatchRootAction(ctx: Context, session: Session, scope: string,
   if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client, rest);
   if (action === "addr" || action === "address") return showServerAddress(ctx, session, scope, config, client, rest);
   if (action === "exec") return executeServerCommand(ctx, session, scope, config, client, rest);
+  if (isInstanceLifecycleAction(action)) {
+    return executeInstanceOperation({ ctx, session, scope, config, client, action });
+  }
   if (action === "refresh") return refreshCache(session, scope, client);
 
   return text(session, scope, "unknown-action", { action });
+}
+
+function isInstanceLifecycleAction(value: string): value is InstanceLifecycleAction {
+  return (INSTANCE_LIFECYCLE_ACTIONS as readonly string[]).includes(value);
 }
 
 async function checkConnection(session: Session, scope: string, client: MCSManagerClient) {
