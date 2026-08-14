@@ -5,6 +5,7 @@ import { resolveNodeImageTitle, type Config } from "./config";
 import { formatErrorTemplate } from "./error-message";
 import {
   executeInstanceOperation,
+  INSTANCE_OPERATION_COMMAND_NAME,
   type InstanceLifecycleAction,
 } from "./instance-operations";
 import { renderNodeStatus, renderServerList } from "./render";
@@ -50,8 +51,12 @@ export function registerCommands(ctx: Context, config: Config, client: MCSManage
   })
     .action(({ session }, input) => executeServerCommand(ctx, session, messageScope, config, client, input));
 
+  ctx.command(INSTANCE_OPERATION_COMMAND_NAME, "MCSManager instance operations.", {
+    authority: config.instanceOperations.authority,
+  });
+
   for (const action of INSTANCE_LIFECYCLE_ACTIONS) {
-    ctx.command(`${commandName}.${action}`, `Operate an MCSManager instance: ${action}.`, {
+    ctx.command(`${INSTANCE_OPERATION_COMMAND_NAME}.${action}`, `Operate an MCSManager instance: ${action}.`, {
       authority: config.instanceOperations.authority,
     }).action(({ session }) =>
       executeInstanceOperation({ ctx, session, scope: messageScope, config, client, action }),
@@ -71,16 +76,9 @@ async function dispatchRootAction(ctx: Context, session: Session, scope: string,
   if (action === "servers" || action === "list") return showMinecraftServers(ctx, session, scope, config, client, rest);
   if (action === "addr" || action === "address") return showServerAddress(ctx, session, scope, config, client, rest);
   if (action === "exec") return executeServerCommand(ctx, session, scope, config, client, rest);
-  if (isInstanceLifecycleAction(action)) {
-    return executeInstanceOperation({ ctx, session, scope, config, client, action });
-  }
   if (action === "refresh") return refreshCache(session, scope, client);
 
   return text(session, scope, "unknown-action", { action });
-}
-
-function isInstanceLifecycleAction(value: string): value is InstanceLifecycleAction {
-  return (INSTANCE_LIFECYCLE_ACTIONS as readonly string[]).includes(value);
 }
 
 async function checkConnection(session: Session, scope: string, client: MCSManagerClient) {

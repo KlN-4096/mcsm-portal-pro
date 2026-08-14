@@ -1,5 +1,10 @@
 # Development Journal
 
+## 2026-08-14 - Lifecycle command routing
+
+- Moved lifecycle entry points from `rc <action>` to native `server <action>` / `server.<action>` subcommands.
+- Kept lifecycle selection, voting, locking, and completion behavior unchanged; bumped the package to 0.0.33.
+
 ## 2026-08-14 - Instance lifecycle voting
 
 - Added configurable `start`, `stop`, `restart`, and kill-then-start commands with fresh selection and state revalidation.

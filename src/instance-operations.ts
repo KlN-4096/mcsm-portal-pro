@@ -9,6 +9,7 @@ import { requestExecutionVote } from "./command-voting";
 import type { InstanceStatus, MinecraftInstance } from "./types";
 
 export type InstanceLifecycleAction = Exclude<InstanceOperationName, "exec">;
+export const INSTANCE_OPERATION_COMMAND_NAME = "server";
 
 type TextResolver = (key: string, params?: object) => string;
 type SelectionResult =

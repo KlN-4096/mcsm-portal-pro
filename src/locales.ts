@@ -1,4 +1,5 @@
 import type { Context, I18n } from "koishi";
+import { INSTANCE_OPERATION_COMMAND_NAME } from "./instance-operations";
 
 export function defineLocales(ctx: Context, commandName: string) {
   ctx.i18n.define("en-US", createLocale(commandName, enUS));
@@ -26,16 +27,19 @@ function createLocale(commandName: string, messages: LocaleMessages): I18n.Store
     [`commands.${commandName}.exec`]: {
       description: messages.commands.exec,
     },
-    [`commands.${commandName}.start`]: {
+    [`commands.${INSTANCE_OPERATION_COMMAND_NAME}`]: {
+      description: messages.commands.operations,
+    },
+    [`commands.${INSTANCE_OPERATION_COMMAND_NAME}.start`]: {
       description: messages.commands.start,
     },
-    [`commands.${commandName}.stop`]: {
+    [`commands.${INSTANCE_OPERATION_COMMAND_NAME}.stop`]: {
       description: messages.commands.stop,
     },
-    [`commands.${commandName}.restart`]: {
+    [`commands.${INSTANCE_OPERATION_COMMAND_NAME}.restart`]: {
       description: messages.commands.restart,
     },
-    [`commands.${commandName}.kill`]: {
+    [`commands.${INSTANCE_OPERATION_COMMAND_NAME}.kill`]: {
       description: messages.commands.kill,
     },
     [`commands.${commandName}.refresh`]: {
@@ -45,7 +49,7 @@ function createLocale(commandName: string, messages: LocaleMessages): I18n.Store
 }
 
 interface LocaleMessages {
-  commands: Record<"root" | "check" | "status" | "servers" | "addr" | "exec" | "start" | "stop" | "restart" | "kill" | "refresh", string>;
+  commands: Record<"root" | "check" | "status" | "servers" | "addr" | "exec" | "operations" | "start" | "stop" | "restart" | "kill" | "refresh", string>;
   messages: LocaleMessageTree;
 }
 
@@ -61,6 +65,7 @@ const enUS: LocaleMessages = {
     servers: "Show Minecraft servers from MCSManager.",
     addr: "Copy a Minecraft server address.",
     exec: "Execute an instance command through the MCSManager terminal.",
+    operations: "Operate MCSManager instances.",
     start: "Start an MCSManager instance.",
     stop: "Stop an MCSManager instance.",
     restart: "Restart an MCSManager instance.",
@@ -68,8 +73,8 @@ const enUS: LocaleMessages = {
     refresh: "Refresh cached MCSManager data.",
   },
   messages: {
-    usage: "Available actions: check, status, servers [status], addr <name>, exec [server] [command], start, stop, restart, kill, refresh.\nYou can use either \"{command} status\" or \"{command}.status\".",
-    "unknown-action": "Unknown MCSManager action \"{action}\". Available actions: check, status, servers [status], addr <name>, exec [server] [command], start, stop, restart, kill, refresh.",
+    usage: "Available actions: check, status, servers [status], addr <name>, exec [server] [command], refresh.\nUse server start, server stop, server restart, or server kill for instance operations.",
+    "unknown-action": "Unknown MCSManager action \"{action}\". Available actions: check, status, servers [status], addr <name>, exec [server] [command], refresh.",
     "check-success": "MCSManager connection check succeeded.",
     "check-failed": "MCSManager connection check failed: {message}",
     "status-failed": "Failed to load MCSManager node status: {message}",
@@ -188,6 +193,7 @@ const zhCN: LocaleMessages = {
     servers: "查看 MCSManager 中的 Minecraft 服务器。",
     addr: "快速复制 Minecraft 服务器地址。",
     exec: "通过 MCSManager 终端执行实例指令。",
+    operations: "操作 MCSManager 实例。",
     start: "启动 MCSManager 实例。",
     stop: "关闭 MCSManager 实例。",
     restart: "重启 MCSManager 实例。",
@@ -195,8 +201,8 @@ const zhCN: LocaleMessages = {
     refresh: "刷新缓存的 MCSManager 数据。",
   },
   messages: {
-    usage: "可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、start、stop、restart、kill、refresh。\n可使用 \"{command} status\" 或 \"{command}.status\"。",
-    "unknown-action": "未知的 MCSManager 操作 \"{action}\"。可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、start、stop、restart、kill、refresh。",
+    usage: "可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、refresh。\n实例操作请使用 server start、server stop、server restart 或 server kill。",
+    "unknown-action": "未知的 MCSManager 操作 \"{action}\"。可用操作：check、status、servers [状态]、addr <名称>、exec [服务器] [指令]、refresh。",
     "check-success": "MCSManager 连接检查成功。",
     "check-failed": "MCSManager 连接检查失败：{message}",
     "status-failed": "加载 MCSManager 节点状态失败：{message}",

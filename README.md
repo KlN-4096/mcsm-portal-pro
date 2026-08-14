@@ -59,13 +59,13 @@ The default root command is `mcsm`.
 | `mcsm servers [status]`      | Show Minecraft server instances by status.               |
 | `mcsm addr <name>`           | Return a matching server address.                        |
 | `mcsm exec [server] [command]` | Execute a command through the MCSManager terminal and show new output. |
-| `mcsm start`                 | Select and start a stopped instance.                     |
-| `mcsm stop`                  | Select and stop a running or starting instance.          |
-| `mcsm restart`               | Select and restart a running or starting instance.       |
-| `mcsm kill`                  | Select, kill, and start a stuck instance.                 |
+| `server start`               | Select and start a stopped instance.                     |
+| `server stop`                | Select and stop a running or starting instance.          |
+| `server restart`             | Select and restart a running or starting instance.       |
+| `server kill`                | Select, kill, and start a stuck instance.                 |
 | `mcsm refresh`               | Refresh cached MCSManager data.                          |
 
-Dot commands such as `mcsm.status` are also supported.
+Dot commands such as `mcsm.status` and `server.kill` are also supported.
 
 Supported server status filters are `running`, `stopped`, `starting`, `stopping`, `unknown`, and `all`.
 
